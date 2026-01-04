@@ -100,6 +100,11 @@ startBtn.addEventListener('click', startQuiz);
 restartBtn.addEventListener('click', restartQuiz);
 
 function startQuiz() {
+    // Clear any existing timer
+    if (timerInterval) {
+        clearInterval(timerInterval);
+    }
+    
     // Reset variables
     currentQuestion = 0;
     score = 0;
@@ -208,6 +213,11 @@ function endQuiz() {
 }
 
 function restartQuiz() {
+    // Clear any existing timer
+    if (timerInterval) {
+        clearInterval(timerInterval);
+    }
+    
     // Reset screens
     resultScreen.classList.remove('active');
     startScreen.classList.add('active');
