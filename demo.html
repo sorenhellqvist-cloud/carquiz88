@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bilquiz - Demo med Testdata</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .start-screen,
+        .quiz-screen,
+        .result-screen {
+            display: none;
+        }
+
+        .start-screen.active,
+        .quiz-screen.active,
+        .result-screen.active {
+            display: block;
+        }
+
+        .start-screen {
+            text-align: center;
+        }
+
+        .start-screen p {
+            font-size: 1.2em;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .demo-badge {
+            background: #ff9800;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            margin-bottom: 20px;
+            display: inline-block;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.2em;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+        }
+
+        .question-counter {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+        }
+
+        .car-image {
+            width: 100%;
+            max-height: 400px;
+            object-fit: contain;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            background: #f5f5f5;
+        }
+
+        .question {
+            font-size: 1.5em;
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+            font-weight: 500;
+        }
+
+        .answers {
+            display: grid;
+            gap: 15px;
+        }
+
+        .answer-btn {
+            background: white;
+            border: 2px solid #667eea;
+            padding: 20px;
+            font-size: 1.1em;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+            color: #333;
+        }
+
+        .answer-btn:hover {
+            background: #f0f0ff;
+            transform: translateX(5px);
+        }
+
+        .answer-btn.selected {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .answer-btn.correct {
+            background: #4caf50;
+            color: white;
+            border-color: #4caf50;
+        }
+
+        .answer-btn.incorrect {
+            background: #f44336;
+            color: white;
+            border-color: #f44336;
+        }
+
+        .answer-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .next-btn {
+            margin-top: 30px;
+            width: 100%;
+            display: none;
+        }
+
+        .next-btn.show {
+            display: block;
+        }
+
+        .result-screen {
+            text-align: center;
+        }
+
+        .score {
+            font-size: 3em;
+            color: #667eea;
+            margin: 30px 0;
+            font-weight: bold;
+        }
+
+        .result-message {
+            font-size: 1.3em;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .question {
+                font-size: 1.2em;
+            }
+
+            .answer-btn {
+                padding: 15px;
+                font-size: 1em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚗 Bilquiz 🚗</h1>
+
+        <!-- Start Screen -->
+        <div class="start-screen active">
+            <div class="demo-badge">DEMO VERSION - Testdata</div>
+            <p>Välkommen till bilquizet! Testa din kunskap om bilar genom att identifiera olika bilmärken och modeller.</p>
+            <button class="btn" onclick="startQuiz()">Starta Quiz</button>
+        </div>
+
+        <!-- Quiz Screen -->
+        <div class="quiz-screen">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="question-counter" id="questionCounter"></div>
+            <img class="car-image" id="carImage" src="" alt="Bil" />
+            <div class="question" id="question"></div>
+            <div class="answers" id="answers"></div>
+            <button class="btn next-btn" id="nextBtn" onclick="nextQuestion()">Nästa Fråga</button>
+        </div>
+
+        <!-- Result Screen -->
+        <div class="result-screen">
+            <div class="score" id="finalScore"></div>
+            <div class="result-message" id="resultMessage"></div>
+            <button class="btn" onclick="restartQuiz()">Gör Om Quizet</button>
+        </div>
+    </div>
+
+    <script>
+        // Mock data for demonstration
+        const MOCK_QUESTIONS = [
+            {
+                question: "Vilken klassisk svensk bil är det här?",
+                image_url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%23e3f2fd' width='400' height='300'/%3E%3Ctext x='50%25' y='40%25' font-size='24' text-anchor='middle' fill='%23333'%3EVolvo 240%3C/text%3E%3Ctext x='50%25' y='60%25' font-size='16' text-anchor='middle' fill='%23666'%3E(Demo bild)%3C/text%3E%3C/svg%3E",
+                correct_answer: "Volvo 240",
+                wrong_answer1: "Saab 900",
+                wrong_answer2: "Volvo 140",
+                wrong_answer3: "Saab 99"
+            },
+            {
+                question: "Vilket lyxmärke tillhör denna sportbil?",
+                image_url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%23fff3e0' width='400' height='300'/%3E%3Ctext x='50%25' y='40%25' font-size='24' text-anchor='middle' fill='%23333'%3EPorsche 911%3C/text%3E%3Ctext x='50%25' y='60%25' font-size='16' text-anchor='middle' fill='%23666'%3E(Demo bild)%3C/text%3E%3C/svg%3E",
+                correct_answer: "Porsche 911",
+                wrong_answer1: "Ferrari 458",
+                wrong_answer2: "Lamborghini Huracán",
+                wrong_answer3: "Aston Martin Vantage"
+            },
+            {
+                question: "Känner du igen denna elbil?",
+                image_url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%23f3e5f5' width='400' height='300'/%3E%3Ctext x='50%25' y='40%25' font-size='24' text-anchor='middle' fill='%23333'%3ETesla Model 3%3C/text%3E%3Ctext x='50%25' y='60%25' font-size='16' text-anchor='middle' fill='%23666'%3E(Demo bild)%3C/text%3E%3C/svg%3E",
+                correct_answer: "Tesla Model 3",
+                wrong_answer1: "Polestar 2",
+                wrong_answer2: "BMW i4",
+                wrong_answer3: "Mercedes EQE"
+            },
+            {
+                question: "Vilken tysk premiumsedan är detta?",
+                image_url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%23e8f5e9' width='400' height='300'/%3E%3Ctext x='50%25' y='40%25' font-size='24' text-anchor='middle' fill='%23333'%3EBMW 5-serie%3C/text%3E%3Ctext x='50%25' y='60%25' font-size='16' text-anchor='middle' fill='%23666'%3E(Demo bild)%3C/text%3E%3C/svg%3E",
+                correct_answer: "BMW 5-serie",
+                wrong_answer1: "Mercedes E-klass",
+                wrong_answer2: "Audi A6",
+                wrong_answer3: "Volvo S90"
+            },
+            {
+                question: "Vilken japansk sportbil är detta?",
+                image_url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%23ffebee' width='400' height='300'/%3E%3Ctext x='50%25' y='40%25' font-size='24' text-anchor='middle' fill='%23333'%3ENissan GT-R%3C/text%3E%3Ctext x='50%25' y='60%25' font-size='16' text-anchor='middle' fill='%23666'%3E(Demo bild)%3C/text%3E%3C/svg%3E",
+                correct_answer: "Nissan GT-R",
+                wrong_answer1: "Toyota Supra",
+                wrong_answer2: "Honda NSX",
+                wrong_answer3: "Mazda RX-7"
+            }
+        ];
+
+        // Quiz state
+        let questions = [];
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let selectedAnswer = null;
+
+        // Initialize with mock data
+        document.addEventListener('DOMContentLoaded', () => {
+            questions = shuffleArray([...MOCK_QUESTIONS]);
+        });
+
+        function startQuiz() {
+            currentQuestionIndex = 0;
+            score = 0;
+            selectedAnswer = null;
+            
+            document.querySelector('.start-screen').classList.remove('active');
+            document.querySelector('.quiz-screen').classList.add('active');
+            
+            displayQuestion();
+        }
+
+        function displayQuestion() {
+            if (currentQuestionIndex >= questions.length) {
+                showResults();
+                return;
+            }
+
+            const question = questions[currentQuestionIndex];
+            selectedAnswer = null;
+
+            // Update progress
+            const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
+            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('questionCounter').textContent = 
+                `Fråga ${currentQuestionIndex + 1} av ${questions.length}`;
+
+            // Display image
+            const imageUrl = question.image_url || question.image || '';
+            document.getElementById('carImage').src = imageUrl;
+            document.getElementById('carImage').alt = question.question || 'Bil';
+
+            // Display question
+            document.getElementById('question').textContent = question.question || 'Vilken bil är det här?';
+
+            // Display answers
+            const answersContainer = document.getElementById('answers');
+            answersContainer.innerHTML = '';
+
+            const answers = [
+                question.correct_answer,
+                question.wrong_answer1 || question.wrong_answer_1,
+                question.wrong_answer2 || question.wrong_answer_2,
+                question.wrong_answer3 || question.wrong_answer_3
+            ].filter(a => a);
+
+            const shuffledAnswers = shuffleArray(answers);
+
+            shuffledAnswers.forEach(answer => {
+                const button = document.createElement('button');
+                button.className = 'answer-btn';
+                button.textContent = answer;
+                button.onclick = () => selectAnswer(answer, button);
+                answersContainer.appendChild(button);
+            });
+
+            // Hide next button
+            document.getElementById('nextBtn').classList.remove('show');
+        }
+
+        function selectAnswer(answer, button) {
+            if (selectedAnswer !== null) return;
+
+            selectedAnswer = answer;
+            const question = questions[currentQuestionIndex];
+            const allButtons = document.querySelectorAll('.answer-btn');
+
+            allButtons.forEach(btn => {
+                btn.disabled = true;
+                if (btn.textContent === question.correct_answer) {
+                    btn.classList.add('correct');
+                } else if (btn === button && btn.textContent !== question.correct_answer) {
+                    btn.classList.add('incorrect');
+                }
+            });
+
+            if (answer === question.correct_answer) {
+                score++;
+            }
+
+            // Show next button
+            document.getElementById('nextBtn').classList.add('show');
+        }
+
+        function nextQuestion() {
+            currentQuestionIndex++;
+            displayQuestion();
+        }
+
+        function showResults() {
+            document.querySelector('.quiz-screen').classList.remove('active');
+            document.querySelector('.result-screen').classList.add('active');
+
+            const percentage = Math.round((score / questions.length) * 100);
+            document.getElementById('finalScore').textContent = `${score} / ${questions.length}`;
+
+            let message = '';
+            if (percentage === 100) {
+                message = '🏆 Perfekt! Du är en riktig bilexpert!';
+            } else if (percentage >= 80) {
+                message = '🌟 Utmärkt! Du har riktigt bra koll på bilar!';
+            } else if (percentage >= 60) {
+                message = '👍 Bra jobbat! Du har god kunskap om bilar!';
+            } else if (percentage >= 40) {
+                message = '🚗 Inte dåligt! Du kan dina bilar ganska bra!';
+            } else {
+                message = '📚 Fortsätt träna! Det finns mycket att lära om bilar!';
+            }
+
+            document.getElementById('resultMessage').textContent = message;
+        }
+
+        function restartQuiz() {
+            document.querySelector('.result-screen').classList.remove('active');
+            document.querySelector('.start-screen').classList.add('active');
+            questions = shuffleArray([...MOCK_QUESTIONS]);
+        }
+
+        function shuffleArray(array) {
+            const newArray = [...array];
+            for (let i = newArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+            }
+            return newArray;
+        }
+    </script>
+</body>
+</html>
