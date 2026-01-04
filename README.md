@@ -32,7 +32,7 @@ En modern och visuell quiz-applikation där användare kan testa sina kunskaper 
 4. Se ditt resultat i slutet
 
 ### Publicering
-För att publicera på https://timede.se/carquiz.html/:
+För att publicera på https://timede.se/carquiz.html:
 1. Ladda upp `carquiz.html` till webbservern
 2. Se till att filen är tillgänglig på rätt URL
 
@@ -43,6 +43,7 @@ Se [DATABASE_SETUP.md](DATABASE_SETUP.md) för instruktioner om hur man konfigur
 ```
 carquiz88/
 ├── carquiz.html          # Huvudapplikationen
+├── demo.html             # Demo-version med testdata
 ├── DATABASE_SETUP.md     # Databasinstruktioner
 └── README.md             # Denna fil
 ```

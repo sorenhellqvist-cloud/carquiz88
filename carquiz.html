@@ -292,6 +292,8 @@
 
     <script>
         // Supabase configuration
+        // Note: The anon key is safe to expose in client-side code - it's designed to be public
+        // and is protected by Row Level Security (RLS) policies on the database
         const SUPABASE_URL = 'https://rrcmcnkcktqvhahnetee.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJyY21jbmtja3RxdmhhaG5ldGVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzYwMjQyMDMsImV4cCI6MjA1MTYwMDIwM30.ypwHJKmEz5b-L1qgxhBcxClZJaHwCwKYxOLR0pPuaRY';
 
