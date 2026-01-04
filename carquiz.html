@@ -290,13 +290,10 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         // Supabase configuration
         const SUPABASE_URL = 'https://rrcmcnkcktqvhahnetee.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJyY21jbmtja3RxdmhhaG5ldGVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzYwMjQyMDMsImV4cCI6MjA1MTYwMDIwM30.ypwHJKmEz5b-L1qgxhBcxClZJaHwCwKYxOLR0pPuaRY';
-        
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         // Quiz state
         let questions = [];
@@ -311,11 +308,20 @@
 
         async function loadQuestions() {
             try {
-                const { data, error } = await supabase
-                    .from('questions')
-                    .select('*');
+                // Use fetch API directly to query Supabase
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/questions?select=*`, {
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
 
-                if (error) throw error;
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
 
                 if (!data || data.length === 0) {
                     throw new Error('Inga frågor hittades i databasen');
