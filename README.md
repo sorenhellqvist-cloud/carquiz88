@@ -6,7 +6,9 @@ Bilfrågesport med timer
 ## Beskrivning
 En interaktiv bilfrågesport där du har 60 sekunder på dig att svara på så många frågor som möjligt om bilar. Testa dina kunskaper om bilmärken, historia, och tekniska detaljer!
 
-**Live demo:** [https://timede.se](https://timede.se)
+**Live demo:** 
+- [https://timede.se](https://timede.se)
+- [https://timede.se/carquiz.html](https://timede.se/carquiz.html)
 
 ## Funktioner
 - **Tidsbegränsad quiz**: 60 sekunder att svara på så många frågor som möjligt
@@ -16,13 +18,16 @@ En interaktiv bilfrågesport där du har 60 sekunder på dig att svara på så m
 - **Responsiv design**: Fungerar på både desktop och mobila enheter
 
 ## Hur man använder
-1. Besök [https://timede.se](https://timede.se) eller öppna `index.html` lokalt
+1. Besök [https://timede.se](https://timede.se) eller [https://timede.se/carquiz.html](https://timede.se/carquiz.html), eller öppna `index.html` lokalt
 2. Klicka på "Starta quiz"
 3. Svara på frågorna så snabbt du kan innan tiden tar slut!
 4. Se din slutpoäng och spela igen
 
-## Deployment
-Applikationen är konfigurerad för automatisk deployment till GitHub Pages med custom domain (timede.se).
+## CI/CD och Deployment
+Applikationen använder GitHub Actions för automatisk kontinuerlig deployment:
+- **Automatisk deployment**: Varje push till `main` branch triggar en ny deployment
+- **Manuell trigger**: Kan även köras manuellt från Actions-fliken
+- **Target**: GitHub Pages med custom domain (timede.se)
 
 Se [DEPLOYMENT.md](DEPLOYMENT.md) för detaljerade instruktioner om hur du konfigurerar deployment och DNS.
 
