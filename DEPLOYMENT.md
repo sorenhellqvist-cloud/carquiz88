@@ -1,5 +1,15 @@
 # Deployment Guide
 
+## Automated CI/CD Pipeline
+
+This application uses GitHub Actions for continuous deployment. Every push to the `main` branch automatically triggers a deployment to GitHub Pages.
+
+### Deployment URLs
+- **Root**: `https://timede.se/`
+- **Direct access**: `https://timede.se/carquiz.html`
+
+Both URLs serve the same CarQuiz88 application.
+
 ## Publishing to timede.se
 
 This application is configured to be deployed to GitHub Pages with a custom domain (timede.se).
@@ -8,9 +18,18 @@ This application is configured to be deployed to GitHub Pages with a custom doma
 
 #### 1. Enable GitHub Pages
 
+**⚠️ IMPORTANT: This step must be completed by a repository administrator before the CI/CD pipeline will work.**
+
 1. Go to your repository settings: `https://github.com/sorenhellqvist-cloud/carquiz88/settings/pages`
-2. Under "Source", select "GitHub Actions" from the dropdown
-3. The workflow will automatically deploy when you push to the `main` branch
+2. Under "Source", select **"GitHub Actions"** from the dropdown (NOT "Deploy from a branch")
+3. Save the changes
+4. The workflow will automatically deploy when you push to the `main` branch or can be triggered manually
+
+Once enabled, the automated deployment workflow will:
+- ✅ Trigger on every push to `main`
+- ✅ Build and deploy the static site
+- ✅ Update the live site at timede.se
+- ✅ Can be manually triggered from the Actions tab
 
 #### 2. Configure Custom Domain (timede.se)
 
@@ -48,9 +67,10 @@ _github-pages-challenge-sorenhellqvist-cloud.timede.se → <verification-code>
 #### 3. Verify Deployment
 
 After DNS propagation (can take up to 24-48 hours):
-1. Visit `https://timede.se` to see your quiz app
+1. Visit `https://timede.se` or `https://timede.se/carquiz.html` to see your quiz app
 2. Verify HTTPS is working
 3. Test the quiz functionality
+4. Check the Actions tab to confirm successful deployment
 
 ### Alternative: Deploy to GitHub Pages without Custom Domain
 
@@ -98,6 +118,20 @@ npx http-server -p 8000
 
 ### Files for Deployment
 
-- `.github/workflows/deploy.yml` - GitHub Actions workflow for automatic deployment
+- `.github/workflows/deploy.yml` - GitHub Actions workflow for automatic CI/CD
 - `CNAME` - Custom domain configuration for timede.se
-- `index.html`, `script.js`, `style.css` - The quiz application files
+- `index.html` - Main entry point (served at root and /index.html)
+- `carquiz.html` - Alternate entry point (served at /carquiz.html)
+- `script.js`, `style.css` - The quiz application code and styling
+
+### CI/CD Workflow Details
+
+The deployment workflow (`.github/workflows/deploy.yml`) performs the following steps:
+1. **Checkout**: Clones the repository code
+2. **Setup Pages**: Configures GitHub Pages environment
+3. **Upload artifact**: Packages all files for deployment
+4. **Deploy**: Publishes to GitHub Pages
+
+**Workflow triggers:**
+- Automatic: Push to `main` branch
+- Manual: Via Actions tab → "Deploy to GitHub Pages" → "Run workflow"
