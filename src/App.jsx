@@ -4,7 +4,7 @@ function App() {
 
   // Du kan ändra 'hemligt' till vad du vill
   const handleAccess = () => {
-    if (password === 'hemligt') {
+    if (password === 'ford') {
       setIsLocked(false);
     } else {
       alert("Fel lösenord!");
