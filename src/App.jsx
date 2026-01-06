@@ -17,15 +17,24 @@ export default function App() {
   const [isCorrect, setIsCorrect] = useState(false);
 
   // Hämta data från din SQL-tabell 'cars'
-  useEffect(() => {
+useEffect(() => {
     async function fetchData() {
+      console.log("Försöker hämta bilar..."); // Bekräftar att funktionen körs
       const { data, error } = await supabase.from('cars').select('*');
-      if (data) {
-        // Slumpa ordningen på frågorna
+      
+      if (error) {
+        console.error("Supabase-fel:", error.message); // Visar om t.ex. nyckeln är fel
+        return;
+      }
+
+      if (data && data.length > 0) {
+        console.log("Hämtade bilar:", data.length);
         const shuffled = data.sort(() => 0.5 - Math.random()).slice(0, MAX_QUESTIONS);
         setQuestions(shuffled);
         prepareOptions(shuffled[0], data);
         setGameState('playing');
+      } else {
+        console.warn("Tabellen 'cars' verkar vara tom.");
       }
     }
     fetchData();
