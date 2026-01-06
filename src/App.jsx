@@ -2,35 +2,32 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 
 function App() {
-  // 1. Tillstånd (State) - Vi har bara en av varje här
+  // 1. Tillstånd (States) - endast en uppsättning variabler
   const [questions, setQuestions] = useState([]);
   const [gameState, setGameState] = useState('loading');
   const [password, setPassword] = useState("");
   const [isLocked, setIsLocked] = useState(true);
 
-  // 2. Funktion för att låsa upp
+  // 2. Funktion för att låsa upp dörren
   const handleAccess = () => {
-    if (password === 'bil88') {
+    if (password === 'bil88') { // Ändra till ditt önskade lösenord
       setIsLocked(false);
     } else {
-      alert("Fel lösenord! Försök igen.");
+      alert("Fel lösenord!");
     }
   };
 
-  // 3. Hämta bilar från databasen (körs bara när man låst upp)
+  // 3. Hämta data (körs bara när sidan låsts upp)
   useEffect(() => {
     if (isLocked) return;
 
     async function fetchData() {
       const { data, error } = await supabase.from('cars').select('*');
-      
       if (error) {
-        console.error("Kunde inte hämta bilar:", error.message);
+        console.error("Fel:", error.message);
         return;
       }
-
-      if (data && data.length > 0) {
-        // Slumpa 10 bilar till quizen
+      if (data) {
         const shuffled = data.sort(() => 0.5 - Math.random()).slice(0, 10);
         setQuestions(shuffled);
         setGameState('playing');
@@ -39,52 +36,39 @@ function App() {
     fetchData();
   }, [isLocked]);
 
-  // --- Vyer (Vad som visas på skärmen) ---
+  // --- Vyer (Här ritar vi ut sidan) ---
 
-  // Låst läge (Dörrvakten)
+  // Vyn för lösenordet (visas först)
   if (isLocked) {
     return (
       <div style={{ textAlign: 'center', marginTop: '100px', fontFamily: 'sans-serif' }}>
-        <h1 style={{ color: '#333' }}>Timede.se 🛠️</h1>
-        <p>Sidan är under konstruktion. Ange lösenord för carquiz:</p>
-        <div style={{ marginTop: '20px' }}>
-          <input 
-            type="password" 
-            placeholder="Lösenord..."
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)}
-            style={{ padding: '12px', borderRadius: '8px', border: '1px solid #ddd', width: '200px' }}
-          />
-          <button 
-            onClick={handleAccess}
-            style={{ padding: '12px 24px', marginLeft: '10px', borderRadius: '8px', backgroundColor: '#007bff', color: 'white', border: 'none', cursor: 'pointer' }}
-          >
-            Lås upp
-          </button>
-        </div>
+        <h1>Timede.se/carquiz 🔒</h1>
+        <p>Sidan är under konstruktion. Ange lösenord:</p>
+        <input 
+          type="password" 
+          value={password} 
+          onChange={(e) => setPassword(e.target.value)}
+          style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ccc' }}
+        />
+        <button onClick={handleAccess} style={{ marginLeft: '10px', padding: '10px 20px', cursor: 'pointer' }}>
+          Lås upp
+        </button>
       </div>
     );
   }
 
-  // Laddningsläge (när man precis låst upp)
+  // Vyn när man laddar bilar från databasen
   if (gameState === 'loading') {
-    return <div style={{ textAlign: 'center', marginTop: '50px' }}>Laddar bilar från databasen...</div>;
+    return <div style={{ textAlign: 'center', marginTop: '100px' }}>Laddar frågor...</div>;
   }
 
-  // Själva Quizen (visas när man låst upp och data har hämtats)
+  // Vyn för själva quizen (när allt är klart)
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
-      <header style={{ borderBottom: '2px solid #eee', marginBottom: '20px' }}>
-        <h1>Välkommen till Carquiz! 🏎️</h1>
-        <p>Antal frågor laddade: {questions.length}</p>
-      </header>
-      
-      <main>
-        <p>Här kommer dina bilfrågor att dyka upp...</p>
-        {/* Här kan du senare lägga in din komponent för frågorna */}
-      </main>
+    <div style={{ padding: '20px', textAlign: 'center', fontFamily: 'sans-serif' }}>
+      <h1>Välkommen till Carquiz! 🏎️</h1>
+      <p>Här kommer quizen att dyka upp nu när anslutningen fungerar.</p>
     </div>
   );
 }
 
-export default App;
+export default App; // Endast en export i slutet av filen
