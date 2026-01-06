@@ -3,7 +3,7 @@ Bilfrågesport med timer
 
 [![Deploy to GitHub Pages](https://github.com/sorenhellqvist-cloud/carquiz88/actions/workflows/deploy.yml/badge.svg)](https://github.com/sorenhellqvist-cloud/carquiz88/actions/workflows/deploy.yml)
 
-## Beskrivning
+## Beskrivning detta är bara en trigger
 En interaktiv bilfrågesport där du har 60 sekunder på dig att svara på så många frågor som möjligt om bilar. Testa dina kunskaper om bilmärken, historia, och tekniska detaljer!
 
 **Live demo:** [https://timede.se](https://timede.se)
