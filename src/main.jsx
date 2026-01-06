@@ -1,21 +1,49 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from './supabaseClient'; // Kontrollera att filnamnet stämmer
+
 function App() {
+  const [questions, setQuestions] = useState([]);
+  const [gameState, setGameState] = useState('loading');
   const [password, setPassword] = useState("");
   const [isLocked, setIsLocked] = useState(true);
 
-  // Du kan ändra 'hemligt' till vad du vill
+  // 1. Lösenordskontroll
   const handleAccess = () => {
-    if (password === 'hemligt') {
+    if (password === 'bil88') { // Ändra 'bil88' till ditt valda lösenord
       setIsLocked(false);
     } else {
       alert("Fel lösenord!");
     }
   };
 
+  // 2. Hämta data från Supabase
+  useEffect(() => {
+    if (isLocked) return; // Hämta ingen data förrän man låst upp
+
+    async function fetchData() {
+      console.log("Försöker hämta bilar...");
+      const { data, error } = await supabase.from('cars').select('*');
+      
+      if (error) {
+        console.error("Supabase-fel:", error.message);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const shuffled = data.sort(() => 0.5 - Math.random()).slice(0, 10);
+        setQuestions(shuffled);
+        setGameState('playing');
+      }
+    }
+    fetchData();
+  }, [isLocked]);
+
+  // Vy för låst sida
   if (isLocked) {
     return (
       <div style={{ textAlign: 'center', marginTop: '100px', fontFamily: 'sans-serif' }}>
         <h1>Timede.se är under konstruktion 🛠️</h1>
-        <p>Ange lösenord för att förhandstitta på Carquiz:</p>
+        <p>Ange lösenord för att se Carquiz:</p>
         <input 
           type="password" 
           value={password} 
@@ -29,20 +57,18 @@ function App() {
     );
   }
 
-  // ... Resten av din nuvarande kod (useEffect, quiz-logik osv)
+  // Vy när man laddar bilar
+  if (gameState === 'loading') {
+    return <div>Laddar bilar...</div>;
+  }
+
+  // Här kommer din quiz-logik (det som visas när man spelar)
   return (
     <div className="App">
-       {/* Din quiz-kod här */}
+      <h1>Välkommen till Carquiz!</h1>
+      {/* Resten av din spel-kod här */}
     </div>
   );
 }
 
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
-
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-)
+export default App;
