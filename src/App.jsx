@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
+import { 
+  debugCarImage, 
+  handleImageError, 
+  handleImageSuccess, 
+  validateAllImages,
+  encodeFilename,
+  isDevelopmentMode 
+} from './imageDebugger';
 
 function App() {
   const [questions, setQuestions] = useState([]);
@@ -23,35 +31,60 @@ function App() {
     if (isLocked) return;
 
     async function fetchData() {
+      console.log('🚗 [CAR QUIZ] Starting to fetch car data...');
+      
       // Vi hämtar 50 bilar (om det finns) för att få bra spridning på märkena
       const { data, error } = await supabase
         .from('cars')
         .select('year, make, model, file_name');
       
       if (error) {
-        console.error("Fel vid hämtning:", error);
+        console.error("❌ [CAR QUIZ] Fel vid hämtning:", error);
         return;
       }
 
       if (data && data.length > 0) {
-        const formattedData = data.map(car => {
-          // Bygg bildlänken automatiskt
+        console.log(`✅ [CAR QUIZ] Fetched ${data.length} cars from database`);
+        
+        // Run comprehensive validation in development mode
+        if (isDevelopmentMode()) {
+          console.log('\n🔍 Running validation on all fetched images...\n');
+          validateAllImages(data);
+        }
+        
+        const formattedData = data.map((car, index) => {
+          // Properly encode the filename to handle spaces and special characters
+          const encodedFilename = encodeFilename(car.file_name);
+          
+          // Bygg bildlänken automatiskt med encoded filename
           const imageUrl = supabase.storage
             .from('Cars88') 
-            .getPublicUrl(car.file_name).data.publicUrl;
+            .getPublicUrl(encodedFilename).data.publicUrl;
+
+          // Debug each car's image in development mode
+          if (isDevelopmentMode()) {
+            console.log(`\n--- Processing Car ${index + 1}/${data.length} ---`);
+            debugCarImage(car, imageUrl);
+          }
 
           return {
             ...car,
-            imageUrl: imageUrl
+            imageUrl: imageUrl,
+            originalFilename: car.file_name, // Keep original for debugging
+            encodedFilename: encodedFilename
           };
         });
 
+        console.log('✅ [CAR QUIZ] All image URLs generated successfully');
+
         // Blanda och välj ut 10 frågor för denna spelomgång
         const shuffled = formattedData.sort(() => 0.5 - Math.random()).slice(0, 10);
+        console.log(`🎲 [CAR QUIZ] Selected ${shuffled.length} random questions for this game`);
+        
         setQuestions(shuffled);
         setGameState('playing');
       } else {
-        console.log("Inga bilar hittades.");
+        console.log("⚠️ [CAR QUIZ] Inga bilar hittades.");
       }
     }
     fetchData();
@@ -140,8 +173,22 @@ function App() {
         src={currentCar.imageUrl} 
         alt="En hemlig bil" 
         style={{ maxWidth: '100%', borderRadius: '10px', margin: '20px 0', maxHeight: '300px', objectFit: 'cover' }}
+        onLoad={(e) => handleImageSuccess(currentCar, currentCar.imageUrl)}
         onError={(e) => { 
-          console.error("Bildfel på:", currentCar.file_name);
+          // Enhanced error logging with debugging information
+          handleImageError(currentCar, currentCar.imageUrl, e);
+          
+          // Additional context for troubleshooting
+          console.error('📋 [IMAGE ERROR] Full car object:', {
+            make: currentCar.make,
+            model: currentCar.model,
+            year: currentCar.year,
+            original_filename: currentCar.originalFilename || currentCar.file_name,
+            encoded_filename: currentCar.encodedFilename,
+            attempted_url: currentCar.imageUrl
+          });
+          
+          // Show placeholder
           e.target.src = 'https://via.placeholder.com/300x200?text=Bild+Saknas'; 
         }} 
       />
