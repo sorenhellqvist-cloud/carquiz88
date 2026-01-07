@@ -5,6 +5,9 @@
  * validating URLs, and identifying filename mismatches between database and storage.
  */
 
+// Supported image file extensions
+const IMAGE_EXTENSIONS_REGEX = /\.(jpg|jpeg|png|gif|webp)$/i;
+
 // Development mode - can be controlled via environment variable
 export const isDevelopmentMode = () => {
   return import.meta.env.VITE_DEV_MODE === 'true' || import.meta.env.DEV;
@@ -118,14 +121,14 @@ export const validateFilename = (filename) => {
   }
   
   // Check for file extension
-  const hasExtension = /\.(jpg|jpeg|png|gif|webp)$/i.test(filename);
+  const hasExtension = IMAGE_EXTENSIONS_REGEX.test(filename);
   if (!hasExtension) {
     issues.push('Filename may be missing a standard image extension');
     suggestions.push('Add .jpg, .jpeg, .png, or other image extension');
   }
   
   // Check for mixed case extensions
-  const extensionMatch = filename.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+  const extensionMatch = filename.match(IMAGE_EXTENSIONS_REGEX);
   if (extensionMatch) {
     const ext = extensionMatch[0];
     if (ext !== ext.toLowerCase()) {
@@ -287,7 +290,9 @@ export const handleImageSuccess = (car, url) => {
  * @returns {Object} Summary of validation results
  */
 export const validateAllImages = (cars) => {
-  console.log('\n🔍 === COMPREHENSIVE IMAGE VALIDATION REPORT ===\n');
+  console.log('');
+  console.log('🔍 === COMPREHENSIVE IMAGE VALIDATION REPORT ===');
+  console.log('');
   
   const results = {
     total: cars.length,
@@ -316,7 +321,9 @@ export const validateAllImages = (cars) => {
   console.log(`❌ Images with issues: ${results.issues.length}/${results.total}`);
   
   if (results.issues.length > 0) {
-    console.log('\n⚠️  Issues found:\n');
+    console.log('');
+    console.log('⚠️  Issues found:');
+    console.log('');
     results.issues.forEach(issue => {
       console.group(`${issue.index}. ${issue.car}`);
       console.log('File name:', issue.file_name);
@@ -326,7 +333,9 @@ export const validateAllImages = (cars) => {
     });
   }
   
-  console.log('\n=== END VALIDATION REPORT ===\n');
+  console.log('');
+  console.log('=== END VALIDATION REPORT ===');
+  console.log('');
   
   return results;
 };
