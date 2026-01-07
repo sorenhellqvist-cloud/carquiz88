@@ -18,12 +18,12 @@ function App() {
     }
   };
 
-  // --- 2. HÄMTA OCH FIXA DATA ---
+  // --- 2. HÄMTA DATA ---
   useEffect(() => {
     if (isLocked) return;
 
     async function fetchData() {
-      // Hämta dina specifika kolumner
+      // Vi hämtar 50 bilar (om det finns) för att få bra spridning på märkena
       const { data, error } = await supabase
         .from('cars')
         .select('year, make, model, file_name');
@@ -34,25 +34,19 @@ function App() {
       }
 
       if (data && data.length > 0) {
-        // Här skapar vi "färdiga" frågor genom att snygga till datan direkt
         const formattedData = data.map(car => {
-          // 1. Skapa hela namnet (t.ex. "Volvo 740")
-          const fullName = `${car.make} ${car.model}`;
-          
-          // 2. Skapa bildlänken automatiskt från din 'Cars88'-bucket
-          // VIKTIGT: Om din bucket heter något annat än 'Cars88', ändra här!
+          // Bygg bildlänken automatiskt
           const imageUrl = supabase.storage
             .from('Cars88') 
             .getPublicUrl(car.file_name).data.publicUrl;
 
           return {
             ...car,
-            displayName: fullName,
             imageUrl: imageUrl
           };
         });
 
-        // Blanda och välj 10 bilar
+        // Blanda och välj ut 10 frågor för denna spelomgång
         const shuffled = formattedData.sort(() => 0.5 - Math.random()).slice(0, 10);
         setQuestions(shuffled);
         setGameState('playing');
@@ -63,16 +57,17 @@ function App() {
     fetchData();
   }, [isLocked]);
 
-  // --- 3. SPEL-LOGIK ---
-  const handleAnswer = (selectedName) => {
+  // --- 3. SPEL-LOGIK (Nivå 1: Bara Märke) ---
+  const handleAnswer = (selectedMake) => {
     const currentCar = questions[currentQuestion];
-    const correctName = currentCar.displayName; // Använder det ihopslagna namnet
     
-    if (selectedName === correctName) {
+    // Vi jämför bara MÄRKET (make)
+    if (selectedMake === currentCar.make) {
       setScore(score + 1);
-      alert(`Rätt! Det var en ${correctName} (${currentCar.year}) 🎉`);
+      // Men vi berättar hela namnet i berömmet!
+      alert(`Rätt! Det var en ${currentCar.make} ${currentCar.model} (${currentCar.year}) 🎉`);
     } else {
-      alert(`Fel! Rätt svar var ${correctName}`);
+      alert(`Fel! Det var en ${currentCar.make} ${currentCar.model}`);
     }
 
     const nextQuestion = currentQuestion + 1;
@@ -91,7 +86,6 @@ function App() {
   };
 
   // --- 4. VYER ---
-
   if (isLocked) {
     return (
       <div style={styles.container}>
@@ -122,40 +116,44 @@ function App() {
     );
   }
 
-  // --- SPELPLANEN ---
+  // --- SPELPLANEN (Nu med smarta knappar) ---
   const currentCar = questions[currentQuestion];
   
-  // Skapa svarsalternativ baserat på 'displayName' (Märke + Modell)
-  const options = questions
-    .map(q => q.displayName)
+  // 1. Hämta alla unika märken från de 10 frågor vi laddat ner
+  // (Set tar bort dubbletter automatiskt så vi inte får två knappar med "Volvo")
+  const allUniqueMakes = [...new Set(questions.map(q => q.make))];
+
+  // 2. Ta bort det rätta svaret från listan av felaktiga alternativ
+  const wrongOptions = allUniqueMakes
+    .filter(make => make !== currentCar.make)
     .sort(() => 0.5 - Math.random())
-    .slice(0, 4);
-    
-  if (!options.includes(currentCar.displayName)) {
-    options[0] = currentCar.displayName;
-    options.sort(() => 0.5 - Math.random());
-  }
+    .slice(0, 3); // Ta max 3 felaktiga
+
+  // 3. Lägg ihop: [Rätt svar] + [Upp till 3 felaktiga]
+  const options = [currentCar.make, ...wrongOptions].sort(() => 0.5 - Math.random());
 
   return (
     <div style={styles.container}>
-      <h2>Vilken bil är detta? ({currentQuestion + 1}/{questions.length})</h2>
+      <h2>Vilket märke är bilen? ({currentQuestion + 1}/{questions.length})</h2>
       
-      {/* Här visas bilden med den länk vi skapade ovan */}
       <img 
         src={currentCar.imageUrl} 
         alt="En hemlig bil" 
         style={{ maxWidth: '100%', borderRadius: '10px', margin: '20px 0', maxHeight: '300px', objectFit: 'cover' }}
-        onError={(e) => { e.target.src = 'https://via.placeholder.com/300x200?text=Ingen+Bild'; }} 
+        onError={(e) => { 
+          console.error("Bildfel på:", currentCar.file_name);
+          e.target.src = 'https://via.placeholder.com/300x200?text=Bild+Saknas'; 
+        }} 
       />
 
       <div style={{ display: 'grid', gap: '10px' }}>
-        {options.map((option, index) => (
+        {options.map((make, index) => (
           <button 
             key={index} 
-            onClick={() => handleAnswer(option)}
+            onClick={() => handleAnswer(make)}
             style={styles.optionButton}
           >
-            {option}
+            {make}
           </button>
         ))}
       </div>
