@@ -9,8 +9,6 @@ function App() {
   const [password, setPassword] = useState("");
   const [isLocked, setIsLocked] = useState(true);
   
-  // NYTT: State för att hantera feedback (istället för alert)
-  // null = spelaren funderar, objekt = spelaren har svarat
   const [feedback, setFeedback] = useState(null); 
 
   const handleAccess = () => {
@@ -45,7 +43,6 @@ function App() {
     fetchData();
   }, [isLocked]);
 
-  // --- NY LOGIK: Svara på frågan ---
   const handleAnswer = (selectedMake) => {
     const currentCar = questions[currentQuestion];
     const isCorrect = selectedMake === currentCar.make;
@@ -53,7 +50,6 @@ function App() {
 
     if (isCorrect) setScore(score + 1);
 
-    // Istället för alert, sätter vi feedback-state
     setFeedback({
       isCorrect: isCorrect,
       message: isCorrect ? "Snyggt jobbat!" : "Tyvärr fel!",
@@ -61,9 +57,8 @@ function App() {
     });
   };
 
-  // --- NY LOGIK: Gå till nästa fråga ---
   const handleNext = () => {
-    setFeedback(null); // Rensa feedback
+    setFeedback(null);
     const nextQ = currentQuestion + 1;
     if (nextQ < questions.length) {
       setCurrentQuestion(nextQ);
@@ -80,12 +75,22 @@ function App() {
     window.location.reload(); 
   };
 
+  // --- GEMENSAMT STIL-SKAL FÖR ALLA VYER ---
+  // Detta gör att allt alltid är centrerat, även målgången.
+  const Wrapper = ({ children }) => (
+    <div style={styles.appWrapper}>
+      <div style={styles.container}>
+        {children}
+      </div>
+    </div>
+  );
+
   // --- VYER ---
 
   // 1. LÅSSKÄRM
   if (isLocked) {
     return (
-      <div style={styles.container}>
+      <Wrapper>
         <h1>Timede.se 🔒</h1>
         <input 
           type="password" 
@@ -95,30 +100,29 @@ function App() {
           style={styles.input}
         />
         <button onClick={handleAccess} style={styles.primaryButton}>Lås upp</button>
-      </div>
+      </Wrapper>
     );
   }
 
   // 2. LADDAR
   if (gameState === 'loading') {
-    return <div style={styles.container}><h3>Startar motorerna... 🏎️</h3></div>;
+    return <Wrapper><h3>Startar motorerna... 🏎️</h3></Wrapper>;
   }
 
-  // 3. MÅLGÅNG
+  // 3. MÅLGÅNG (Nu centrerad!)
   if (gameState === 'finished') {
     return (
-      <div style={styles.container}>
+      <Wrapper>
         <h1>Målgång! 🏁</h1>
         <p style={{fontSize: '1.2rem'}}>Du fick <strong>{score}</strong> av <strong>{questions.length}</strong> rätt.</p>
         <button onClick={restartGame} style={styles.primaryButton}>Kör igen</button>
-      </div>
+      </Wrapper>
     );
   }
 
   // 4. SPELPLANEN
   const currentCar = questions[currentQuestion];
   
-  // Ta fram svarsalternativ (körs bara om vi INTE visar feedback)
   let options = [];
   if (!feedback) {
     const allUniqueMakes = [...new Set(questions.map(q => q.make))];
@@ -130,65 +134,64 @@ function App() {
   }
 
   return (
-    <div style={styles.appWrapper}>
-      <div style={styles.container}>
-        
-        {/* Status bar */}
-        <div style={styles.statusBar}>
-          <span>Fråga {currentQuestion + 1} / {questions.length}</span>
-          <span>Poäng: {score}</span>
-        </div>
-
-        {/* Bild-container */}
-        <div style={styles.imageContainer}>
-          <img 
-            src={currentCar.imageUrl} 
-            alt="Hemlig bil" 
-            style={styles.carImage}
-            onError={(e) => { 
-              e.target.onerror = null; 
-              e.target.src = 'https://placehold.co/600x400?text=Bild+saknas'; 
-            }} 
-          />
-        </div>
-
-        {/* UI: Antingen Knappar ELLER Resultat */}
-        {!feedback ? (
-          <div style={styles.grid}>
-            {options.map((make, index) => (
-              <button 
-                key={index} 
-                onClick={() => handleAnswer(make)}
-                style={styles.optionButton}
-              >
-                {make}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div style={{
-            ...styles.feedbackCard, 
-            backgroundColor: feedback.isCorrect ? '#dcfce7' : '#fee2e2',
-            borderColor: feedback.isCorrect ? '#22c55e' : '#ef4444'
-          }}>
-            <h2 style={{color: feedback.isCorrect ? '#166534' : '#991b1b', margin: '0 0 10px 0'}}>
-              {feedback.message}
-            </h2>
-            <p style={{fontSize: '1.1rem', margin: '0 0 20px 0'}}>
-              {feedback.details}
-            </p>
-            <button onClick={handleNext} style={styles.primaryButton}>
-              Nästa fråga &rarr;
-            </button>
-          </div>
-        )}
-
+    <Wrapper>
+      {/* Status bar */}
+      <div style={styles.statusBar}>
+        <span>Nivå 1</span>
+        <span>Poäng: {score}/{questions.length}</span>
       </div>
-    </div>
+
+      {/* Bild-container */}
+      <div style={styles.imageContainer}>
+        <img 
+          // HÄR ÄR NYCKELN TILL ATT FIXA ANDROID-BUGGEN:
+          // Genom att sätta key till filnamnet tvingar vi React 
+          // att bygga om bilden helt när namnet ändras.
+          key={currentCar.file_name} 
+          src={currentCar.imageUrl} 
+          alt="Hemlig bil" 
+          style={styles.carImage}
+          onError={(e) => { 
+            e.target.onerror = null; 
+            e.target.src = 'https://placehold.co/800x600?text=Bild+saknas'; 
+          }} 
+        />
+      </div>
+
+      {/* UI: Antingen Knappar ELLER Resultat */}
+      {!feedback ? (
+        <div style={styles.grid}>
+          {options.map((make, index) => (
+            <button 
+              key={index} 
+              onClick={() => handleAnswer(make)}
+              style={styles.optionButton}
+            >
+              {make}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div style={{
+          ...styles.feedbackCard, 
+          backgroundColor: feedback.isCorrect ? '#dcfce7' : '#fee2e2',
+          borderColor: feedback.isCorrect ? '#22c55e' : '#ef4444'
+        }}>
+          <h2 style={{color: feedback.isCorrect ? '#166534' : '#991b1b', margin: '0 0 10px 0'}}>
+            {feedback.message}
+          </h2>
+          <p style={{fontSize: '1.1rem', margin: '0 0 20px 0'}}>
+            {feedback.details}
+          </p>
+          <button onClick={handleNext} style={styles.primaryButton}>
+            Nästa fråga &rarr;
+          </button>
+        </div>
+      )}
+    </Wrapper>
   );
 }
 
-// --- MOBILANPASSAD CSS (JavaScript Styles) ---
 const styles = {
   appWrapper: {
     minHeight: '100vh',
@@ -196,19 +199,19 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#f9fafb',
-    padding: '20px',
+    padding: '10px', // Lite mindre padding för mobil
     boxSizing: 'border-box',
   },
   container: { 
     width: '100%',
-    maxWidth: '400px', // Mobilbredd som max
+    maxWidth: '420px', // Lite bredare för att rymma 800px bredd nerskalat
     textAlign: 'center', 
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   },
   statusBar: {
     display: 'flex',
     justifyContent: 'space-between',
-    padding: '0 10px 10px 10px',
+    padding: '0 5px 10px 5px',
     fontSize: '0.9rem',
     color: '#6b7280',
     fontWeight: '600'
@@ -219,21 +222,24 @@ const styles = {
     overflow: 'hidden',
     boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
     backgroundColor: '#e5e7eb',
-    aspectRatio: '4 / 3', // Håller bilden snygg i porträtt
+    // Här sätter vi formatet till 4:3 (800x600)
+    aspectRatio: '4 / 3', 
+    width: '100%',
+    position: 'relative',
   },
   carImage: {
     width: '100%',
     height: '100%',
-    objectFit: 'cover',
+    objectFit: 'cover', // Ser till att bilden fyller rutan snyggt
     display: 'block',
   },
   grid: { 
     display: 'grid', 
-    gridTemplateColumns: '1fr 1fr', // Två kolumner
+    gridTemplateColumns: '1fr 1fr', 
     gap: '12px' 
   },
   optionButton: { 
-    padding: '20px 10px', // Stora tryckytor
+    padding: '20px 5px', 
     fontSize: '16px', 
     fontWeight: 'bold',
     backgroundColor: 'white', 
@@ -242,7 +248,7 @@ const styles = {
     cursor: 'pointer', 
     color: '#374151',
     boxShadow: '0 2px 0 rgba(0,0,0,0.05)',
-    touchAction: 'manipulation', // Förhindrar zoom vid dubbelklick på mobil
+    touchAction: 'manipulation', 
   },
   primaryButton: { 
     width: '100%',
