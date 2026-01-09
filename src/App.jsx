@@ -1,4 +1,4 @@
-// Version: 1.1 - Chrome Gauge & Bone Buttons Update
+// Version: 1.2 - Classic Instruments Gauge & Level Transition Logic
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 
@@ -8,7 +8,7 @@ function App() {
   const [options, setOptions] = useState([]); 
   const [score, setScore] = useState(0);
   const [mistakes, setMistakes] = useState(0);
-  const [gameState, setGameState] = useState('loading'); 
+  const [gameState, setGameState] = useState('loading'); // loading, playing, interstitial, finished, failed
   const [password, setPassword] = useState("");
   const [isLocked, setIsLocked] = useState(true);
   const [feedback, setFeedback] = useState(null); 
@@ -17,11 +17,13 @@ function App() {
   const [timeLeft, setTimeLeft] = useState(250); 
   const [timerActive, setTimerActive] = useState(false);
 
+  // Hantering av lösenord
   const handleAccess = () => {
     if (password === 'bil88') setIsLocked(false);
     else alert("Fel lösenord!");
   };
 
+  // Timer-logik
   useEffect(() => {
     let interval = null;
     if (timerActive && timeLeft > 0) {
@@ -36,6 +38,7 @@ function App() {
     return () => clearInterval(interval);
   }, [timerActive, timeLeft, gameState]);
 
+  // Hämta data
   useEffect(() => {
     if (isLocked) return;
     async function fetchData() {
@@ -55,6 +58,7 @@ function App() {
     fetchData();
   }, [isLocked]);
 
+  // Generera svarsalternativ
   useEffect(() => {
     if (questions.length > 0 && gameState === 'playing' && !feedback) {
       const currentCar = questions[currentQuestion];
@@ -92,18 +96,28 @@ function App() {
 
   const handleNext = () => {
     setFeedback(null);
-    if (currentQuestion + 1 < questions.length) setCurrentQuestion(currentQuestion + 1);
-    else {
+    if (currentQuestion + 1 < questions.length) {
+      setCurrentQuestion(currentQuestion + 1);
+    } else {
       setTimerActive(false);
-      setGameState('finished');
+      // Gå till pausskärmen istället för direkt till 'finished'
+      setGameState('interstitial');
     }
   };
+
+  const startNextLevel = () => {
+    // Här laddar vi senare in nivå 2 frågor
+    alert("Nivå 2 laddas nu...");
+    window.location.reload(); 
+  };
+
+  // --- RENDERING ---
 
   if (isLocked) {
     return (
       <div style={styles.appWrapper}>
         <div style={styles.container}>
-          <h1 style={{fontSize: '2.5rem', textShadow: '2px 2px #000'}}>TIMEDE.SE</h1>
+          <h1 style={{fontSize: '2.5rem', marginBottom: '10px'}}>TIMEDE.SE</h1>
           <input type="password" placeholder="Lösenord" value={password} onChange={(e) => setPassword(e.target.value)} style={styles.input} />
           <button onClick={handleAccess} style={styles.primaryButton}>STARTA MOTORN</button>
         </div>
@@ -111,18 +125,42 @@ function App() {
     );
   }
 
-  if (gameState === 'loading') return <div style={styles.appWrapper}><h3>Hämtar fordon...</h3></div>;
-
-  if (gameState === 'failed' || gameState === 'finished') {
-    const win = gameState === 'finished';
+  // PAUSSKÄRM / ANNONSPLATS (Interstitial)
+  if (gameState === 'interstitial') {
     return (
       <div style={styles.appWrapper}>
         <div style={styles.container}>
-          <h1 style={{color: win ? '#22c55e' : '#ef4444'}}>{win ? 'MÅLGÅNG!' : 'GAME OVER!'}</h1>
+          <h1 style={{color: '#22c55e'}}>BRA JOBBAT! 🏆</h1>
           <div style={styles.resultCard}>
-            {!win && <p style={{color: '#f87171', fontWeight: 'bold'}}>{failReason}</p>}
-            <p>Rätt svar: {score}/25</p>
-            <h2>POÄNG: {win ? (score * 100 + timeLeft * 10) : (score * 100)}</h2>
+            <p style={{fontSize: '1.2rem'}}>Du har klarat Nivå 1!</p>
+            <p>Din poäng: <strong>{score * 100 + timeLeft * 10}</strong></p>
+            <p style={{marginTop: '10px', color: '#fbbf24'}}>Du ligger på <strong>1:a plats</strong> av alla spelare denna vecka!</p>
+          </div>
+          
+          {/* GOOGLE ADS PLACEHOLDER */}
+          <div style={styles.adSpace}>
+            <p style={{fontSize: '10px', color: '#475569'}}>ANNONS FRÅN GOOGLE</p>
+            <div style={styles.adContent}>
+              {/* Här klistras AdSense koden in senare */}
+              <p>Här visas din annons...</p>
+            </div>
+          </div>
+
+          <p style={{fontSize: '14px', marginBottom: '15px'}}>Nivå 2 startar efter annonsen</p>
+          <button onClick={startNextLevel} style={styles.primaryButton}>GÅ VIDARE</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (gameState === 'failed') {
+    return (
+      <div style={styles.appWrapper}>
+        <div style={styles.container}>
+          <h1 style={{color: '#ef4444'}}>GAME OVER! 💥</h1>
+          <div style={styles.resultCard}>
+            <p style={{color: '#f87171', fontWeight: 'bold'}}>{failReason}</p>
+            <p>Du nådde fråga {currentQuestion + 1} av 25.</p>
           </div>
           <button onClick={() => window.location.reload()} style={styles.primaryButton}>FÖRSÖK IGEN</button>
         </div>
@@ -130,29 +168,31 @@ function App() {
     );
   }
 
+  const currentCar = questions[currentQuestion];
+
   return (
     <div style={styles.appWrapper}>
       <div style={styles.container}>
         
-        {/* RETRO GAUGE HÖGST UPP */}
+        {/* RETRO GAUGE (Inspirerad av din bild) */}
         <div style={styles.retroGaugeContainer}>
           <div style={styles.gaugeChromeRing}>
             <div style={styles.gaugeBackground}>
-              <div style={{ ...styles.gaugeNeedle, transform: `translateX(-50%) rotate(${(timeLeft / 250) * 180 - 90}deg)` }} />
+              <div style={styles.gaugeGridLines} />
+              <div style={{ ...styles.gaugeNeedle, transform: `translateX(-50%) rotate(${(timeLeft / 250) * 140 - 70}deg)` }} />
               <div style={styles.needleCap} />
               <div style={styles.labelE}>E</div>
+              <div style={styles.labelHalf}>1/2</div>
               <div style={styles.labelF}>F</div>
               <div style={styles.fuelText}>FUEL</div>
             </div>
           </div>
         </div>
 
-        {/* BILBILD */}
         <div style={styles.imageContainer}>
-          <img key={questions[currentQuestion]?.file_name} src={questions[currentQuestion]?.imageUrl} alt="Car" style={styles.carImage} />
+          <img key={currentCar?.file_name} src={currentCar?.imageUrl} alt="Car" style={styles.carImage} />
         </div>
 
-        {/* SVARSKNAPPAR (BENVITA) */}
         {!feedback ? (
           <div style={styles.grid}>
             {options.map((make, index) => (
@@ -167,7 +207,6 @@ function App() {
           </div>
         )}
 
-        {/* STATUS RAD (FLYTTAD TILL BOTTEN) */}
         <div style={styles.statusRowBottom}>
           <div style={styles.statusBox}>
             <div style={{fontSize: '9px', color: '#94a3b8'}}>CHECK ENGINE</div>
@@ -178,53 +217,69 @@ function App() {
           </div>
           <div style={styles.statusBox}>
             <div style={{fontSize: '9px', color: '#94a3b8'}}>PROGRESS</div>
-            <div style={{fontSize: '20px', fontWeight: 'bold', color: '#f1f5f9'}}>{currentQuestion + 1} / 25</div>
+            <div style={{fontSize: '20px', fontWeight: 'bold'}}>{currentQuestion + 1} / 25</div>
           </div>
         </div>
-
       </div>
     </div>
   );
 }
 
 const styles = {
-  appWrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#020617', padding: '15px', color: '#f8fafc', fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif' },
+  appWrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#020617', padding: '15px', color: '#f8fafc', fontFamily: 'serif' },
   container: { width: '100%', maxWidth: '400px', textAlign: 'center' },
+  
+  // Uppdaterad mätare baserat på din bild
   retroGaugeContainer: { display: 'flex', justifyContent: 'center', height: '140px', position: 'relative', marginBottom: '20px' },
   gaugeChromeRing: {
     width: '210px', height: '210px', borderRadius: '50%',
-    background: 'linear-gradient(145deg, #e2e8f0, #475569, #94a3b8, #cbd5e1)', 
+    background: 'linear-gradient(145deg, #94a3b8, #f8fafc, #475569, #94a3b8)', 
     display: 'flex', justifyContent: 'center', alignItems: 'center',
-    boxShadow: '0 10px 20px rgba(0,0,0,0.6)',
+    boxShadow: '0 10px 30px rgba(0,0,0,0.8)',
     position: 'absolute', top: '-100px'
   },
   gaugeBackground: { 
     width: '190px', height: '190px', borderRadius: '50%', 
-    backgroundColor: '#000', position: 'relative', overflow: 'hidden'
+    backgroundColor: '#ecece4', position: 'relative', overflow: 'hidden',
+    border: '2px solid #334155'
+  },
+  gaugeGridLines: {
+    position: 'absolute', top: '15%', left: '15%', right: '15%', bottom: '50%',
+    border: '2px solid #334155', borderBottom: 'none', borderRadius: '80px 80px 0 0',
+    opacity: 0.3
   },
   gaugeNeedle: { 
-    position: 'absolute', bottom: '50%', left: '50%', width: '3px', height: '80px', 
-    backgroundColor: '#ff0000', transformOrigin: 'bottom center', zIndex: '10', transition: 'transform 0.5s ease' 
+    position: 'absolute', bottom: '50%', left: '50%', width: '4px', height: '75px', 
+    backgroundColor: '#b91c1c', transformOrigin: 'bottom center', zIndex: '10', 
+    transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+    borderRadius: '4px 4px 0 0'
   },
-  needleCap: { position: 'absolute', top: '47%', left: '47%', width: '14px', height: '14px', backgroundColor: '#cbd5e1', borderRadius: '50%', zIndex: '11', border: '1px solid #000' },
-  labelE: { position: 'absolute', bottom: '22%', left: '15%', color: '#ef4444', fontWeight: 'bold', fontSize: '18px' },
-  labelF: { position: 'absolute', bottom: '22%', right: '15%', color: '#f8fafc', fontWeight: 'bold', fontSize: '18px' },
-  fuelText: { position: 'absolute', top: '65%', left: '50%', transform: 'translateX(-50%)', fontSize: '10px', color: '#475569', letterSpacing: '3px' },
+  needleCap: { position: 'absolute', top: '46%', left: '46%', width: '18px', height: '18px', backgroundColor: '#b91c1c', borderRadius: '50%', zIndex: '11', boxShadow: '0 2px 4px rgba(0,0,0,0.3)' },
+  labelE: { position: 'absolute', bottom: '28%', left: '18%', color: '#000', fontWeight: '900', fontSize: '18px', transform: 'rotate(-45deg)' },
+  labelHalf: { position: 'absolute', top: '20%', left: '42%', color: '#000', fontWeight: '900', fontSize: '16px' },
+  labelF: { position: 'absolute', bottom: '28%', right: '18%', color: '#000', fontWeight: '900', fontSize: '18px', transform: 'rotate(45deg)' },
+  fuelText: { position: 'absolute', top: '60%', left: '50%', transform: 'translateX(-50%)', fontSize: '16px', color: '#000', fontWeight: '900', letterSpacing: '2px' },
+
+  // Benvita knappar
   boneButton: { 
-    padding: '18px 5px', borderRadius: '8px', border: '1px solid #d1d5db',
-    backgroundColor: '#f5f5f0', 
-    color: '#1f2937', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer',
-    boxShadow: '0 4px 0 #d6d3d1'
+    padding: '18px 5px', borderRadius: '10px', border: '1px solid #d1d5db',
+    backgroundColor: '#f5f5f0', color: '#1f2937', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer',
+    boxShadow: '0 5px 0 #d6d3d1', marginBottom: '5px'
   },
+
+  // Annonsplats
+  adSpace: { backgroundColor: '#1e293b', borderRadius: '12px', padding: '10px', margin: '20px 0', border: '1px dashed #475569' },
+  adContent: { height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', backgroundColor: '#0f172a', borderRadius: '8px' },
+
   statusRowBottom: { display: 'flex', gap: '15px', marginTop: '25px' },
-  statusBox: { flex: 1, backgroundColor: '#0f172a', padding: '12px', borderRadius: '15px', border: '2px solid #1e293b', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)' },
+  statusBox: { flex: 1, backgroundColor: '#0f172a', padding: '12px', borderRadius: '15px', border: '2px solid #1e293b' },
   engineLight: { width: '16px', height: '16px', borderRadius: '50%', border: '2px solid #000' },
-  imageContainer: { width: '100%', aspectRatio: '4/3', borderRadius: '12px', overflow: 'hidden', border: '6px solid #1e293b', marginBottom: '20px', boxShadow: '0 8px 16px rgba(0,0,0,0.5)' },
+  imageContainer: { width: '100%', aspectRatio: '4/3', borderRadius: '12px', overflow: 'hidden', border: '6px solid #1e293b', marginBottom: '20px' },
   carImage: { width: '100%', height: '100%', objectFit: 'cover' },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' },
-  primaryButton: { width: '100%', padding: '15px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold' },
+  primaryButton: { width: '100%', padding: '15px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' },
   input: { width: '100%', padding: '15px', marginBottom: '10px', borderRadius: '10px', backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155' },
-  feedbackCard: { padding: '15px', borderRadius: '12px', border: '3px solid' },
+  feedbackCard: { padding: '15px', borderRadius: '12px', border: '3px solid', textAlign: 'center' },
   resultCard: { backgroundColor: '#1e293b', padding: '20px', borderRadius: '12px', marginBottom: '20px' }
 };
 
