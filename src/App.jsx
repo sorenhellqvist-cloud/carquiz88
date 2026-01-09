@@ -1,3 +1,4 @@
+// Version: 1.1 - Chrome Gauge & Bone Buttons Update
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 
@@ -11,7 +12,7 @@ function App() {
   const [password, setPassword] = useState("");
   const [isLocked, setIsLocked] = useState(true);
   const [feedback, setFeedback] = useState(null); 
-  const [failReason, setFailReason] = useState(""); // Förklarar varför man förlorade
+  const [failReason, setFailReason] = useState("");
   
   const [timeLeft, setTimeLeft] = useState(250); 
   const [timerActive, setTimerActive] = useState(false);
@@ -21,7 +22,6 @@ function App() {
     else alert("Fel lösenord!");
   };
 
-  // Timer-logik
   useEffect(() => {
     let interval = null;
     if (timerActive && timeLeft > 0) {
@@ -29,14 +29,13 @@ function App() {
         setTimeLeft((t) => t - 1);
       }, 1000);
     } else if (timeLeft === 0 && gameState === 'playing') {
-      setFailReason("BENSINSTOPP! Tiden rann ut.");
+      setFailReason("BENSINSTOPP!");
       setGameState('failed');
       setTimerActive(false);
     }
     return () => clearInterval(interval);
   }, [timerActive, timeLeft, gameState]);
 
-  // Hämta data
   useEffect(() => {
     if (isLocked) return;
     async function fetchData() {
@@ -56,7 +55,6 @@ function App() {
     fetchData();
   }, [isLocked]);
 
-  // Generera knappar
   useEffect(() => {
     if (questions.length > 0 && gameState === 'playing' && !feedback) {
       const currentCar = questions[currentQuestion];
@@ -74,13 +72,12 @@ function App() {
     const currentCar = questions[currentQuestion];
     const isCorrect = selectedMake === currentCar.make;
 
-    if (isCorrect) {
-      setScore(score + 1);
-    } else {
+    if (isCorrect) setScore(score + 1);
+    else {
       const newMistakes = mistakes + 1;
       setMistakes(newMistakes);
       if (newMistakes >= 2) {
-        setFailReason("MOTORRAS! För många felaktiga gissningar.");
+        setFailReason("MOTORRAS!");
         setTimerActive(false);
         setGameState('failed');
         return;
@@ -95,9 +92,8 @@ function App() {
 
   const handleNext = () => {
     setFeedback(null);
-    if (currentQuestion + 1 < questions.length) {
-      setCurrentQuestion(currentQuestion + 1);
-    } else {
+    if (currentQuestion + 1 < questions.length) setCurrentQuestion(currentQuestion + 1);
+    else {
       setTimerActive(false);
       setGameState('finished');
     }
@@ -107,7 +103,7 @@ function App() {
     return (
       <div style={styles.appWrapper}>
         <div style={styles.container}>
-          <h1 style={{fontSize: '2.5rem', letterSpacing: '2px'}}>TIMEDE.SE</h1>
+          <h1 style={{fontSize: '2.5rem', textShadow: '2px 2px #000'}}>TIMEDE.SE</h1>
           <input type="password" placeholder="Lösenord" value={password} onChange={(e) => setPassword(e.target.value)} style={styles.input} />
           <button onClick={handleAccess} style={styles.primaryButton}>STARTA MOTORN</button>
         </div>
@@ -115,7 +111,7 @@ function App() {
     );
   }
 
-  if (gameState === 'loading') return <div style={styles.appWrapper}><h3>Värmer upp...</h3></div>;
+  if (gameState === 'loading') return <div style={styles.appWrapper}><h3>Hämtar fordon...</h3></div>;
 
   if (gameState === 'failed' || gameState === 'finished') {
     const win = gameState === 'finished';
@@ -124,10 +120,9 @@ function App() {
         <div style={styles.container}>
           <h1 style={{color: win ? '#22c55e' : '#ef4444'}}>{win ? 'MÅLGÅNG!' : 'GAME OVER!'}</h1>
           <div style={styles.resultCard}>
-            {!win && <p style={{color: '#f87171', fontWeight: 'bold', fontSize: '1.1rem'}}>{failReason}</p>}
+            {!win && <p style={{color: '#f87171', fontWeight: 'bold'}}>{failReason}</p>}
             <p>Rätt svar: {score}/25</p>
-            {win && <p>Tidsbonus: {timeLeft * 10}</p>}
-            <h2>TOTALT: {win ? (score * 100 + timeLeft * 10) : (score * 100)}</h2>
+            <h2>POÄNG: {win ? (score * 100 + timeLeft * 10) : (score * 100)}</h2>
           </div>
           <button onClick={() => window.location.reload()} style={styles.primaryButton}>FÖRSÖK IGEN</button>
         </div>
@@ -139,91 +134,98 @@ function App() {
     <div style={styles.appWrapper}>
       <div style={styles.container}>
         
-        {/* RETRO GAUGE */}
+        {/* RETRO GAUGE HÖGST UPP */}
         <div style={styles.retroGaugeContainer}>
-          <div style={styles.gaugeBackground}>
-            {/* Nålen - nu med högre z-index och klar färg */}
-            <div style={{ 
-              ...styles.gaugeNeedle, 
-              transform: `translateX(-50%) rotate(${(timeLeft / 250) * 180 - 90}deg)` 
-            }} />
-            <div style={styles.needleCap} />
-            <div style={styles.labelE}>E</div>
-            <div style={styles.labelF}>F</div>
-            <div style={styles.fuelText}>FUEL</div>
-          </div>
-        </div>
-
-        {/* STATUS */}
-        <div style={styles.statusRow}>
-          <div style={styles.statusBox}>
-            <div style={{fontSize: '9px'}}>CHECK ENGINE</div>
-            <div style={{display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '5px'}}>
-              <div style={{...styles.engineLight, backgroundColor: mistakes >= 1 ? '#ef4444' : '#374151', boxShadow: mistakes >= 1 ? '0 0 10px #ef4444' : 'none'}} />
-              <div style={{...styles.engineLight, backgroundColor: mistakes >= 2 ? '#ef4444' : '#374151', boxShadow: mistakes >= 2 ? '0 0 10px #ef4444' : 'none'}} />
+          <div style={styles.gaugeChromeRing}>
+            <div style={styles.gaugeBackground}>
+              <div style={{ ...styles.gaugeNeedle, transform: `translateX(-50%) rotate(${(timeLeft / 250) * 180 - 90}deg)` }} />
+              <div style={styles.needleCap} />
+              <div style={styles.labelE}>E</div>
+              <div style={styles.labelF}>F</div>
+              <div style={styles.fuelText}>FUEL</div>
             </div>
           </div>
-          <div style={styles.statusBox}>
-            <div style={{fontSize: '9px'}}>PROGRESS</div>
-            <div style={{fontSize: '18px', fontWeight: 'bold'}}>{currentQuestion + 1}/25</div>
-          </div>
         </div>
 
-        {/* BILD */}
+        {/* BILBILD */}
         <div style={styles.imageContainer}>
           <img key={questions[currentQuestion]?.file_name} src={questions[currentQuestion]?.imageUrl} alt="Car" style={styles.carImage} />
         </div>
 
-        {/* KNAPPAR / FEEDBACK */}
+        {/* SVARSKNAPPAR (BENVITA) */}
         {!feedback ? (
           <div style={styles.grid}>
             {options.map((make, index) => (
-              <button key={index} onClick={() => handleAnswer(make)} style={styles.optionButton}>{make}</button>
+              <button key={index} onClick={() => handleAnswer(make)} style={styles.boneButton}>{make}</button>
             ))}
           </div>
         ) : (
-          <div style={{...styles.feedbackCard, backgroundColor: feedback.isCorrect ? '#dcfce7' : '#fee2e2', borderColor: feedback.isCorrect ? '#22c55e' : '#ef4444'}}>
+          <div style={{...styles.feedbackCard, backgroundColor: feedback.isCorrect ? '#dcfce7' : '#fee2e2'}}>
             <h2 style={{margin: '0 0 5px 0', color: '#111827'}}>{feedback.message}</h2>
             <p style={{margin: '0 0 15px 0', color: '#374151'}}>{feedback.details}</p>
             <button onClick={handleNext} style={styles.primaryButton}>NÄSTA FRÅGA</button>
           </div>
         )}
+
+        {/* STATUS RAD (FLYTTAD TILL BOTTEN) */}
+        <div style={styles.statusRowBottom}>
+          <div style={styles.statusBox}>
+            <div style={{fontSize: '9px', color: '#94a3b8'}}>CHECK ENGINE</div>
+            <div style={{display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '5px'}}>
+              <div style={{...styles.engineLight, backgroundColor: mistakes >= 1 ? '#ff0000' : '#1e293b', boxShadow: mistakes >= 1 ? '0 0 12px #ff0000' : 'none'}} />
+              <div style={{...styles.engineLight, backgroundColor: mistakes >= 2 ? '#ff0000' : '#1e293b', boxShadow: mistakes >= 2 ? '0 0 12px #ff0000' : 'none'}} />
+            </div>
+          </div>
+          <div style={styles.statusBox}>
+            <div style={{fontSize: '9px', color: '#94a3b8'}}>PROGRESS</div>
+            <div style={{fontSize: '20px', fontWeight: 'bold', color: '#f1f5f9'}}>{currentQuestion + 1} / 25</div>
+          </div>
+        </div>
+
       </div>
     </div>
   );
 }
 
 const styles = {
-  appWrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a', padding: '15px', color: '#f9fafb', fontFamily: 'monospace' },
+  appWrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#020617', padding: '15px', color: '#f8fafc', fontFamily: '"Segoe UI", Tahoma, Geneva, Verdana, sans-serif' },
   container: { width: '100%', maxWidth: '400px', textAlign: 'center' },
-  retroGaugeContainer: { display: 'flex', justifyContent: 'center', height: '120px', position: 'relative', overflow: 'visible', marginBottom: '10px' },
+  retroGaugeContainer: { display: 'flex', justifyContent: 'center', height: '140px', position: 'relative', marginBottom: '20px' },
+  gaugeChromeRing: {
+    width: '210px', height: '210px', borderRadius: '50%',
+    background: 'linear-gradient(145deg, #e2e8f0, #475569, #94a3b8, #cbd5e1)', 
+    display: 'flex', justifyContent: 'center', alignItems: 'center',
+    boxShadow: '0 10px 20px rgba(0,0,0,0.6)',
+    position: 'absolute', top: '-100px'
+  },
   gaugeBackground: { 
-    width: '200px', height: '200px', border: '8px solid #334155', borderRadius: '50%', 
-    position: 'absolute', top: '0', backgroundColor: '#000', boxShadow: 'inset 0 0 20px #000' 
+    width: '190px', height: '190px', borderRadius: '50%', 
+    backgroundColor: '#000', position: 'relative', overflow: 'hidden'
   },
   gaugeNeedle: { 
-    position: 'absolute', bottom: '50%', left: '50%', width: '4px', height: '85px', 
-    backgroundColor: '#ff4757', transformOrigin: 'bottom center', zIndex: '10', 
-    borderRadius: '4px', transition: 'transform 0.5s ease-out' 
+    position: 'absolute', bottom: '50%', left: '50%', width: '3px', height: '80px', 
+    backgroundColor: '#ff0000', transformOrigin: 'bottom center', zIndex: '10', transition: 'transform 0.5s ease' 
   },
-  needleCap: { 
-    position: 'absolute', top: '46%', left: '46.5%', width: '16px', height: '16px', 
-    backgroundColor: '#94a3b8', borderRadius: '50%', zIndex: '11', border: '2px solid #000' 
+  needleCap: { position: 'absolute', top: '47%', left: '47%', width: '14px', height: '14px', backgroundColor: '#cbd5e1', borderRadius: '50%', zIndex: '11', border: '1px solid #000' },
+  labelE: { position: 'absolute', bottom: '22%', left: '15%', color: '#ef4444', fontWeight: 'bold', fontSize: '18px' },
+  labelF: { position: 'absolute', bottom: '22%', right: '15%', color: '#f8fafc', fontWeight: 'bold', fontSize: '18px' },
+  fuelText: { position: 'absolute', top: '65%', left: '50%', transform: 'translateX(-50%)', fontSize: '10px', color: '#475569', letterSpacing: '3px' },
+  boneButton: { 
+    padding: '18px 5px', borderRadius: '8px', border: '1px solid #d1d5db',
+    backgroundColor: '#f5f5f0', 
+    color: '#1f2937', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer',
+    boxShadow: '0 4px 0 #d6d3d1'
   },
-  labelE: { position: 'absolute', bottom: '25%', left: '15%', color: '#ef4444', fontWeight: 'bold', fontSize: '18px' },
-  labelF: { position: 'absolute', bottom: '25%', right: '15%', color: '#22c55e', fontWeight: 'bold', fontSize: '18px' },
-  fuelText: { position: 'absolute', top: '60%', left: '50%', transform: 'translateX(-50%)', fontSize: '12px', color: '#475569', letterSpacing: '4px' },
-  statusRow: { display: 'flex', gap: '10px', marginBottom: '15px' },
-  statusBox: { flex: 1, backgroundColor: '#1e293b', padding: '10px', borderRadius: '12px', border: '1px solid #334155' },
-  engineLight: { width: '15px', height: '15px', borderRadius: '50%', border: '2px solid #000' },
-  imageContainer: { width: '100%', aspectRatio: '4/3', borderRadius: '15px', overflow: 'hidden', border: '4px solid #1e293b', marginBottom: '15px' },
+  statusRowBottom: { display: 'flex', gap: '15px', marginTop: '25px' },
+  statusBox: { flex: 1, backgroundColor: '#0f172a', padding: '12px', borderRadius: '15px', border: '2px solid #1e293b', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)' },
+  engineLight: { width: '16px', height: '16px', borderRadius: '50%', border: '2px solid #000' },
+  imageContainer: { width: '100%', aspectRatio: '4/3', borderRadius: '12px', overflow: 'hidden', border: '6px solid #1e293b', marginBottom: '20px', boxShadow: '0 8px 16px rgba(0,0,0,0.5)' },
   carImage: { width: '100%', height: '100%', objectFit: 'cover' },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' },
-  optionButton: { padding: '15px 5px', borderRadius: '10px', border: 'none', backgroundColor: '#334155', color: 'white', fontWeight: 'bold', cursor: 'pointer' },
-  primaryButton: { width: '100%', padding: '15px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' },
-  input: { width: '100%', padding: '15px', marginBottom: '10px', borderRadius: '10px', border: 'none' },
-  feedbackCard: { padding: '15px', borderRadius: '15px', border: '3px solid' },
-  resultCard: { backgroundColor: '#1e293b', padding: '20px', borderRadius: '15px', marginBottom: '20px' }
+  primaryButton: { width: '100%', padding: '15px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold' },
+  input: { width: '100%', padding: '15px', marginBottom: '10px', borderRadius: '10px', backgroundColor: '#1e293b', color: 'white', border: '1px solid #334155' },
+  feedbackCard: { padding: '15px', borderRadius: '12px', border: '3px solid' },
+  resultCard: { backgroundColor: '#1e293b', padding: '20px', borderRadius: '12px', marginBottom: '20px' }
 };
 
 export default App;
