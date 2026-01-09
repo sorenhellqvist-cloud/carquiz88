@@ -5,16 +5,33 @@ function App() {
   const [questions, setQuestions] = useState([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [score, setScore] = useState(0);
+  const [mistakes, setMistakes] = useState(0);
   const [gameState, setGameState] = useState('loading'); 
   const [password, setPassword] = useState("");
   const [isLocked, setIsLocked] = useState(true);
-  
   const [feedback, setFeedback] = useState(null); 
+  
+  // Timer states
+  const [timeLeft, setTimeLeft] = useState(250); 
+  const [timerActive, setTimerActive] = useState(false);
 
   const handleAccess = () => {
     if (password === 'bil88') setIsLocked(false);
     else alert("Fel lösenord!");
   };
+
+  useEffect(() => {
+    let interval = null;
+    if (timerActive && timeLeft > 0) {
+      interval = setInterval(() => {
+        setTimeLeft((t) => t - 1);
+      }, 1000);
+    } else if (timeLeft === 0 && gameState === 'playing') {
+      setGameState('failed'); // Tiden ute = Game Over
+      setTimerActive(false);
+    }
+    return () => clearInterval(interval);
+  }, [timerActive, timeLeft, gameState]);
 
   useEffect(() => {
     if (isLocked) return;
@@ -35,9 +52,10 @@ function App() {
           imageUrl: supabase.storage.from('Cars88').getPublicUrl(car.file_name).data.publicUrl
         }));
 
-        const shuffled = formattedData.sort(() => 0.5 - Math.random()).slice(0, 10);
+        const shuffled = formattedData.sort(() => 0.5 - Math.random()).slice(0, 25);
         setQuestions(shuffled);
         setGameState('playing');
+        setTimerActive(true);
       }
     }
     fetchData();
@@ -48,11 +66,22 @@ function App() {
     const isCorrect = selectedMake === currentCar.make;
     const fullName = `${currentCar.year} ${currentCar.make} ${currentCar.model}`;
 
-    if (isCorrect) setScore(score + 1);
+    if (isCorrect) {
+      setScore(score + 1);
+    } else {
+      const newMistakes = mistakes + 1;
+      setMistakes(newMistakes);
+      
+      if (newMistakes >= 2) {
+        setTimerActive(false);
+        setGameState('failed');
+        return;
+      }
+    }
 
     setFeedback({
       isCorrect: isCorrect,
-      message: isCorrect ? "Snyggt jobbat!" : "Tyvärr fel!",
+      message: isCorrect ? "SNYGGT JOBBAT!" : "TYVÄRR FEL!",
       details: `Det var en ${fullName}`
     });
   };
@@ -63,20 +92,19 @@ function App() {
     if (nextQ < questions.length) {
       setCurrentQuestion(nextQ);
     } else {
+      setTimerActive(false);
       setGameState('finished');
     }
   };
 
+  const calculateTotalScore = () => {
+    return (score * 100) + (timeLeft * 10);
+  };
+
   const restartGame = () => {
-    setScore(0);
-    setCurrentQuestion(0);
-    setGameState('loading');
-    setFeedback(null);
     window.location.reload(); 
   };
 
-  // --- GEMENSAMT STIL-SKAL FÖR ALLA VYER ---
-  // Detta gör att allt alltid är centrerat, även målgången.
   const Wrapper = ({ children }) => (
     <div style={styles.appWrapper}>
       <div style={styles.container}>
@@ -85,44 +113,54 @@ function App() {
     </div>
   );
 
-  // --- VYER ---
-
-  // 1. LÅSSKÄRM
   if (isLocked) {
     return (
       <Wrapper>
-        <h1>Timede.se 🔒</h1>
+        <h1 style={{fontSize: '2rem', marginBottom: '20px'}}>Timede.se 🔒</h1>
         <input 
           type="password" 
           placeholder="Lösenord"
           value={password} 
-          onChange={(e) => setPassword(e.target.value)}
-          style={styles.input}
+          onChange={(e) => setPassword(e.target.value)} 
+          style={styles.input} 
         />
-        <button onClick={handleAccess} style={styles.primaryButton}>Lås upp</button>
+        <button onClick={handleAccess} style={styles.primaryButton}>STARTA MOTORN</button>
       </Wrapper>
     );
   }
 
-  // 2. LADDAR
-  if (gameState === 'loading') {
-    return <Wrapper><h3>Startar motorerna... 🏎️</h3></Wrapper>;
+  if (gameState === 'loading') return <Wrapper><h3>Hämtar bilar... 🏎️</h3></Wrapper>;
+
+  if (gameState === 'failed') {
+    return (
+      <Wrapper>
+        <h1 style={{color: '#ef4444'}}>GAME OVER! 💥</h1>
+        <p style={{fontSize: '1.2rem', marginBottom: '20px'}}>
+            {timeLeft === 0 ? "Bensinen tog slut!" : "För många felaktiga svar."}
+        </p>
+        <button onClick={restartGame} style={styles.primaryButton}>FÖRSÖK IGEN</button>
+      </Wrapper>
+    );
   }
 
-  // 3. MÅLGÅNG (Nu centrerad!)
   if (gameState === 'finished') {
     return (
       <Wrapper>
-        <h1>Målgång! 🏁</h1>
-        <p style={{fontSize: '1.2rem'}}>Du fick <strong>{score}</strong> av <strong>{questions.length}</strong> rätt.</p>
-        <button onClick={restartGame} style={styles.primaryButton}>Kör igen</button>
+        <h1 style={{color: '#22c55e'}}>MÅLGÅNG! 🏁</h1>
+        <div style={styles.resultCard}>
+          <p>Rätt svar: <strong>{score}/25</strong></p>
+          <p>Tidsbonus: <strong>{timeLeft * 10}</strong></p>
+          <hr style={{opacity: 0.2}}/>
+          <h2>TOTALT: {calculateTotalScore()}</h2>
+        </div>
+        <button onClick={restartGame} style={styles.primaryButton}>KÖR IGEN</button>
       </Wrapper>
     );
   }
 
-  // 4. SPELPLANEN
   const currentCar = questions[currentQuestion];
-  
+  if (!currentCar) return null;
+
   let options = [];
   if (!feedback) {
     const allUniqueMakes = [...new Set(questions.map(q => q.make))];
@@ -135,57 +173,58 @@ function App() {
 
   return (
     <Wrapper>
-      {/* Status bar */}
-      <div style={styles.statusBar}>
-        <span>Nivå 1</span>
-        <span>Poäng: {score}/{questions.length}</span>
+      {/* Dashboard Section */}
+      <div style={styles.dashboard}>
+        {/* Fuel Gauge */}
+        <div style={styles.gaugeWrapper}>
+          <div style={styles.gaugeLabel}>FUEL</div>
+          <div style={styles.gaugeContainer}>
+            <div 
+              style={{
+                ...styles.gaugeFill, 
+                width: `${(timeLeft / 250) * 100}%`,
+                backgroundColor: timeLeft < 60 ? '#ef4444' : '#fbbf24'
+              }} 
+            />
+          </div>
+          <div style={styles.gaugeMarkers}>
+            <span>E</span>
+            <span>1/2</span>
+            <span>F</span>
+          </div>
+        </div>
+
+        {/* Status Indicators */}
+        <div style={styles.statusRow}>
+            <div style={styles.statusBox}>
+                <div style={{fontSize: '10px'}}>CHECK ENGINE</div>
+                <div style={{display: 'flex', gap: '5px', justifyContent: 'center', marginTop: '4px'}}>
+                    <div style={{...styles.engineLight, backgroundColor: mistakes >= 1 ? '#ef4444' : '#374151', boxShadow: mistakes >= 1 ? '0 0 8px #ef4444' : 'none'}}></div>
+                    <div style={{...styles.engineLight, backgroundColor: mistakes >= 2 ? '#ef4444' : '#374151', boxShadow: mistakes >= 2 ? '0 0 8px #ef4444' : 'none'}}></div>
+                </div>
+            </div>
+            <div style={styles.statusBox}>
+                <div style={{fontSize: '10px'}}>PROGRESS</div>
+                <div style={{fontSize: '16px', fontWeight: 'bold'}}>{currentQuestion + 1}/25</div>
+            </div>
+        </div>
       </div>
 
-      {/* Bild-container */}
       <div style={styles.imageContainer}>
-        <img 
-          // HÄR ÄR NYCKELN TILL ATT FIXA ANDROID-BUGGEN:
-          // Genom att sätta key till filnamnet tvingar vi React 
-          // att bygga om bilden helt när namnet ändras.
-          key={currentCar.file_name} 
-          src={currentCar.imageUrl} 
-          alt="Hemlig bil" 
-          style={styles.carImage}
-          onError={(e) => { 
-            e.target.onerror = null; 
-            e.target.src = 'https://placehold.co/800x600?text=Bild+saknas'; 
-          }} 
-        />
+        <img key={currentCar.file_name} src={currentCar.imageUrl} alt="Bil" style={styles.carImage} />
       </div>
 
-      {/* UI: Antingen Knappar ELLER Resultat */}
       {!feedback ? (
         <div style={styles.grid}>
           {options.map((make, index) => (
-            <button 
-              key={index} 
-              onClick={() => handleAnswer(make)}
-              style={styles.optionButton}
-            >
-              {make}
-            </button>
+            <button key={index} onClick={() => handleAnswer(make)} style={styles.optionButton}>{make}</button>
           ))}
         </div>
       ) : (
-        <div style={{
-          ...styles.feedbackCard, 
-          backgroundColor: feedback.isCorrect ? '#dcfce7' : '#fee2e2',
-          borderColor: feedback.isCorrect ? '#22c55e' : '#ef4444'
-        }}>
-          <h2 style={{color: feedback.isCorrect ? '#166534' : '#991b1b', margin: '0 0 10px 0'}}>
-            {feedback.message}
-          </h2>
-          <p style={{fontSize: '1.1rem', margin: '0 0 20px 0'}}>
-            {feedback.details}
-          </p>
-          <button onClick={handleNext} style={styles.primaryButton}>
-            Nästa fråga &rarr;
-          </button>
+        <div style={{...styles.feedbackCard, backgroundColor: feedback.isCorrect ? '#dcfce7' : '#fee2e2', borderColor: feedback.isCorrect ? '#22c55e' : '#ef4444'}}>
+          <h2 style={{margin: '0 0 10px 0'}}>{feedback.message}</h2>
+          <p style={{margin: '0 0 20px 0'}}>{feedback.details}</p>
+          <button onClick={handleNext} style={styles.primaryButton}>NÄSTA &rarr;</button>
         </div>
       )}
     </Wrapper>
@@ -193,92 +232,87 @@ function App() {
 }
 
 const styles = {
-  appWrapper: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f9fafb',
-    padding: '10px', // Lite mindre padding för mobil
-    boxSizing: 'border-box',
+  appWrapper: { 
+    minHeight: '100vh', 
+    display: 'flex', 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    backgroundColor: '#111827', // Mörkare bakgrund för instrumentpanel-känsla
+    padding: '10px' 
   },
   container: { 
-    width: '100%',
-    maxWidth: '420px', // Lite bredare för att rymma 800px bredd nerskalat
+    width: '100%', 
+    maxWidth: '420px', 
     textAlign: 'center', 
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    color: '#f9fafb'
   },
-  statusBar: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    padding: '0 5px 10px 5px',
-    fontSize: '0.9rem',
-    color: '#6b7280',
-    fontWeight: '600'
-  },
-  imageContainer: {
+  dashboard: {
+    backgroundColor: '#1f2937',
+    padding: '15px',
+    borderRadius: '16px',
     marginBottom: '20px',
-    borderRadius: '12px',
-    overflow: 'hidden',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-    backgroundColor: '#e5e7eb',
-    // Här sätter vi formatet till 4:3 (800x600)
-    aspectRatio: '4 / 3', 
-    width: '100%',
-    position: 'relative',
+    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)',
+    border: '1px solid #374151'
   },
-  carImage: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover', // Ser till att bilden fyller rutan snyggt
-    display: 'block',
+  gaugeWrapper: { marginBottom: '15px' },
+  gaugeLabel: { fontSize: '10px', fontWeight: 'bold', textAlign: 'left', marginBottom: '4px', color: '#9ca3af' },
+  gaugeContainer: { 
+    height: '14px', 
+    backgroundColor: '#000', 
+    borderRadius: '10px', 
+    overflow: 'hidden', 
+    border: '1px solid #4b5563' 
   },
-  grid: { 
-    display: 'grid', 
-    gridTemplateColumns: '1fr 1fr', 
-    gap: '12px' 
+  gaugeFill: { 
+    height: '100%', 
+    transition: 'width 1s linear, background-color 0.5s ease' 
   },
-  optionButton: { 
-    padding: '20px 5px', 
-    fontSize: '16px', 
-    fontWeight: 'bold',
-    backgroundColor: 'white', 
-    border: '2px solid #e5e7eb', 
+  gaugeMarkers: { display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '10px', color: '#6b7280', fontWeight: 'bold' },
+  statusRow: { display: 'flex', justifyContent: 'space-between', gap: '10px' },
+  statusBox: { 
+    flex: 1, 
+    backgroundColor: '#111827', 
+    padding: '8px', 
+    borderRadius: '8px', 
+    border: '1px solid #374151' 
+  },
+  engineLight: { width: '12px', height: '12px', borderRadius: '50%', border: '1px solid #000' },
+  imageContainer: { 
+    aspectRatio: '4/3', 
+    overflow: 'hidden', 
     borderRadius: '12px', 
-    cursor: 'pointer', 
-    color: '#374151',
-    boxShadow: '0 2px 0 rgba(0,0,0,0.05)',
-    touchAction: 'manipulation', 
+    marginBottom: '20px', 
+    boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+    backgroundColor: '#374151'
+  },
+  carImage: { width: '100%', height: '100%', objectFit: 'cover' },
+  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' },
+  optionButton: { 
+    padding: '18px 5px', 
+    borderRadius: '12px', 
+    border: 'none', 
+    fontSize: '16px', 
+    fontWeight: 'bold', 
+    cursor: 'pointer',
+    backgroundColor: '#374151',
+    color: 'white',
+    boxShadow: '0 4px 0 #1f2937'
   },
   primaryButton: { 
-    width: '100%',
     padding: '15px', 
-    fontSize: '18px', 
     backgroundColor: '#2563eb', 
     color: 'white', 
     border: 'none', 
     borderRadius: '12px', 
-    cursor: 'pointer',
-    fontWeight: 'bold',
-    boxShadow: '0 4px 0 #1d4ed8',
-    marginTop: '10px'
-  },
-  input: { 
-    padding: '15px', 
-    fontSize: '16px', 
-    borderRadius: '8px', 
-    border: '1px solid #ccc', 
     width: '100%', 
-    marginBottom: '15px',
-    boxSizing: 'border-box'
+    fontWeight: 'bold', 
+    cursor: 'pointer',
+    boxShadow: '0 4px 0 #1d4ed8'
   },
-  feedbackCard: {
-    padding: '20px',
-    borderRadius: '12px',
-    borderWidth: '2px',
-    borderStyle: 'solid',
-    animation: 'fadeIn 0.3s ease'
-  }
+  input: { padding: '15px', width: '100%', marginBottom: '15px', borderRadius: '8px', border: 'none', boxSizing: 'border-box', fontSize: '16px' },
+  feedbackCard: { padding: '20px', borderRadius: '12px', border: '2px solid', color: '#111827' },
+  resultCard: { backgroundColor: '#1f2937', padding: '20px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #374151' }
 };
 
 export default App;
