@@ -1,4 +1,4 @@
-// Version: 2.7.1 - Full Persistent Game & Layout Fix
+// Version: 2.7.2 - Layout Fix: Vertical Login Stack
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 
@@ -21,7 +21,6 @@ function App() {
   const [timeLeft, setTimeLeft] = useState(250); 
   const [timerActive, setTimerActive] = useState(false);
 
-  // 1. Hämta bilbiblioteket
   useEffect(() => {
     async function fetchAllCars() {
       const { data, error } = await supabase.from('cars').select('*');
@@ -30,19 +29,13 @@ function App() {
     fetchAllCars();
   }, []);
 
-  // 2. Spara framsteg till databasen
   const saveProgress = async (finalScore, nextLevel) => {
     if (!user) return;
     await supabase.from('leaderboard').upsert({ 
-        alias: user, 
-        email, 
-        current_level: nextLevel, 
-        total_score: finalScore, 
-        last_played: new Date() 
+        alias: user, email, current_level: nextLevel, total_score: finalScore, last_played: new Date() 
     }, { onConflict: 'alias' });
   };
 
-  // 3. Hantera Start/Fortsätt
   const handleStartGame = async () => {
     let targetLevel = 1;
     if (user) {
@@ -63,13 +56,12 @@ function App() {
     setCurrentQuestion(0);
     setMistakes(0);
     setLevel(targetLevel);
-    setTimeLeft(targetLevel === 1 ? 250 : 225); //
+    setTimeLeft(targetLevel === 1 ? 250 : 225);
     setGameState('playing');
     setTimerActive(true);
     setFeedback(null);
   };
 
-  // 4. Timer-logik
   useEffect(() => {
     let interval = null;
     if (timerActive && timeLeft > 0) {
@@ -82,7 +74,6 @@ function App() {
     return () => clearInterval(interval);
   }, [timerActive, timeLeft, gameState]);
 
-  // 5. Alternativ för Nivå 1
   useEffect(() => {
     if (questions.length > 0 && gameState === 'playing' && level === 1 && !feedback) {
       const currentCar = questions[currentQuestion];
@@ -102,7 +93,6 @@ function App() {
       if (selected === currentCar.make) points = 100;
       else isMiss = true;
     } else {
-      // Poängsystem Nivå 2
       const diff = Math.abs(parseInt(sliderValue) - currentCar.year);
       if (diff === 0) points = 100;
       else if (diff === 1) points = 50;
@@ -113,7 +103,7 @@ function App() {
     if (isMiss) {
       const newMistakes = mistakes + 1;
       setMistakes(newMistakes);
-      if (newMistakes >= 3) { //
+      if (newMistakes >= 3) {
         setFailReason("MOTORRAS!");
         setGameState('failed');
         setTimerActive(false);
@@ -132,12 +122,12 @@ function App() {
       setTimerActive(false);
       const finalScore = score + (timeLeft * 10);
       setScore(finalScore);
-      saveProgress(finalScore, level + 1); //
+      saveProgress(finalScore, level + 1);
       setGameState('interstitial');
     }
   };
 
-  // --- RENDERING VIEWS ---
+  // --- VIEWS ---
 
   if (isLocked) {
     return (
@@ -164,9 +154,9 @@ function App() {
             </ul>
           </div>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
-            <input placeholder="Alias" value={user} onChange={(e) => setUser(e.target.value)} style={styles.input} />
-            <input placeholder="E-post" value={email} onChange={(e) => setEmail(e.target.value)} style={styles.input} />
+          <div style={styles.loginForm}>
+            <input placeholder="Ditt Alias" value={user} onChange={(e) => setUser(e.target.value)} style={styles.input} />
+            <input placeholder="E-post (valfritt)" value={email} onChange={(e) => setEmail(e.target.value)} style={styles.input} />
             <button onClick={handleStartGame} style={styles.primaryButton}>STARTA / FORTSÄTT</button>
           </div>
         </div>
@@ -274,7 +264,8 @@ const styles = {
   statusBox: { flex: 1, backgroundColor: '#0f172a', padding: '12px', borderRadius: '15px', border: '2px solid #1e293b' },
   engineLight: { width: '14px', height: '14px', borderRadius: '50%', border: '1px solid #000' },
   primaryButton: { width: '100%', padding: '15px', backgroundColor: '#2563eb', color: 'white', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer', boxSizing: 'border-box' },
-  input: { width: '100%', padding: '15px', marginBottom: '10px', borderRadius: '10px', border: 'none', backgroundColor: '#1e293b', color: 'white', boxSizing: 'border-box', fontSize: '16px' },
+  input: { width: '100%', padding: '15px', borderRadius: '10px', border: 'none', backgroundColor: '#1e293b', color: 'white', boxSizing: 'border-box', fontSize: '16px' },
+  loginForm: { display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }, // NYTT: Tvingar stapling
   infoBox: { backgroundColor: '#1e293b', padding: '15px', borderRadius: '10px', marginBottom: '15px', textAlign: 'left' },
   googleAdWrapper: { height: '250px', backgroundColor: '#0f172a', border: '1px dashed #475569', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px' },
   resultCard: { backgroundColor: '#1e293b', padding: '15px', borderRadius: '10px', marginBottom: '15px' },
