@@ -1,4 +1,3 @@
-// Version: 2.9 - Card-based Navigation & Level Logic
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 
@@ -11,14 +10,12 @@ function App() {
   const [score, setScore] = useState(0);
   const [mistakes, setMistakes] = useState(0);
   const [level, setLevel] = useState(1); 
-  // Ändrat gameState för att stödja din kort-sekvens
-  const [gameState, setGameState] = useState('info_auth'); 
+  const [gameState, setGameState] = useState('card_register'); // Startar med registreringskortet
   const [user, setUser] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLocked, setIsLocked] = useState(true);
   const [feedback, setFeedback] = useState(null); 
-  const [failReason, setFailReason] = useState("");
   const [timeLeft, setTimeLeft] = useState(250); 
   const [timerActive, setTimerActive] = useState(false);
   const [leaderboard, setLeaderboard] = useState([]);
@@ -31,18 +28,7 @@ function App() {
     fetchAllCars();
   }, []);
 
-  const fetchLeaderboard = async () => {
-    const { data } = await supabase.from('leaderboard').select('alias, total_score').order('total_score', { ascending: false }).limit(5);
-    if (data) setLeaderboard(data);
-  };
-
-  const saveProgress = async (finalScore, nextLevel) => {
-    if (!user) return;
-    await supabase.from('leaderboard').upsert({ alias: user, email, current_level: nextLevel, total_score: finalScore, last_played: new Date() }, { onConflict: 'alias' });
-  };
-
-  // Steg 1: Från Registrering till Nivå-info
-  const handleAuthDone = async () => {
+  const handleRegisterDone = async () => {
     let targetLevel = 1;
     if (user) {
       const { data } = await supabase.from('leaderboard').select('*').eq('alias', user).single();
@@ -52,11 +38,10 @@ function App() {
       }
     }
     setLevel(targetLevel);
-    setGameState('info_level');
+    setGameState('card_level_info'); // Logik: Gå till informationskortet
   };
 
-  // Steg 2: Starta själva spelandet
-  const prepareLevel = () => {
+  const startPlaying = () => {
     const shuffled = [...allCars].sort(() => 0.5 - Math.random()).slice(0, 25).map(car => ({
         ...car, imageUrl: supabase.storage.from('Cars88').getPublicUrl(car.file_name).data.publicUrl
     }));
@@ -89,23 +74,20 @@ function App() {
     } else {
       const diff = Math.abs(parseInt(sliderValue) - currentCar.year);
       if (diff === 0) points = 100;
-      else if (diff === 1) points = 50;
-      else if (diff === 2) points = 25;
+      else if (diff <= 2) points = 50; // Förenklad logik för test
       else isMiss = true;
     }
 
-    if (isMiss && level === 2) { // Motorras endast på Nivå 2+
-      const newMistakes = mistakes + 1;
-      setMistakes(newMistakes);
-      if (newMistakes >= 3) {
-        setFailReason("MOTORRAS!");
+    if (isMiss && level >= 2) {
+      setMistakes(prev => prev + 1);
+      if (mistakes + 1 >= 3) {
         setGameState('failed');
         setTimerActive(false);
         return;
       }
     }
     setScore(score + points);
-    setFeedback({ isCorrect: !isMiss, details: `Det var en ${currentCar.year} ${currentCar.make}. +${points}p` });
+    setFeedback({ isCorrect: !isMiss, details: `Det var en ${currentCar.year} ${currentCar.make}.` });
   };
 
   const handleNext = async () => {
@@ -114,83 +96,129 @@ function App() {
       setCurrentQuestion(currentQuestion + 1);
     } else {
       setTimerActive(false);
-      const finalScore = score + (timeLeft * 10);
-      setScore(finalScore);
-      await saveProgress(finalScore, level + 1);
-      await fetchLeaderboard();
-      setGameState('interstitial');
+      setGameState('card_ad'); // Logik: Visa annonskortet efter nivåslut
     }
   };
 
-  // --- KORT-RENDERING ---
+  // --- KORT-VYER ---
 
-  // KORT: Registrering
-  if (gameState === 'info_auth') {
+  if (isLocked) {
     return (
       <div style={styles.appWrapper}>
         <div style={styles.container}>
-          <h2 style={styles.title}>Välkommen! 🏎️</h2>
+          <h1>LÅST 🔒</h1>
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={styles.input} placeholder="Lösenord" />
+          <button onClick={() => password === 'bil88' ? setIsLocked(false) : alert("Fel!")} style={styles.primaryButton}>ÖPPNA</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (gameState === 'card_register') {
+    return (
+      <div style={styles.appWrapper}>
+        <div style={styles.container}>
+          <h2>Välkommen!</h2>
           <div style={styles.infoBox}>
-            <p>För att spara dina framsteg och tävla om priser behöver du välja ett alias.</p>
-            <p style={{fontSize: '12px', color: '#94a3b8'}}>Tips: Lägg till e-post om du vill att vi ska kunna kontakta dig vid vinst!</p>
+            <p>Välj ett alias för att spara dina poäng.</p>
+            <p style={{fontSize: '12px'}}>E-post är valfritt för vinstkontakt.</p>
           </div>
           <div style={styles.loginForm}>
-            <input placeholder="Ditt Alias" value={user} onChange={(e) => setUser(e.target.value)} style={styles.input} />
-            <input placeholder="E-post (valfritt)" value={email} onChange={(e) => setEmail(e.target.value)} style={styles.input} />
-            <button onClick={handleAuthDone} style={styles.primaryButton}>NÄSTA</button>
+            <input placeholder="Alias" value={user} onChange={(e) => setUser(e.target.value)} style={styles.input} />
+            <input placeholder="E-post" value={email} onChange={(e) => setEmail(e.target.value)} style={styles.input} />
+            <button onClick={handleRegisterDone} style={styles.primaryButton}>GÅ VIDARE</button>
           </div>
         </div>
       </div>
     );
   }
 
-  // KORT: Nivå-information
-  if (gameState === 'info_level') {
+  if (gameState === 'card_level_info') {
     return (
       <div style={styles.appWrapper}>
         <div style={styles.container}>
-          <h2 style={styles.title}>Nivå {level}</h2>
+          <h2>Nivå {level}</h2>
           <div style={styles.infoBox}>
-            {level === 1 ? (
-              <>
-                <p><strong>Mål:</strong> Identifiera bilmärket bland 4 alternativ.</p>
-                <p><strong>Poäng:</strong> 100p per rätt svar.</p>
-                <p><strong>Tid:</strong> Du har 250 sekunder på dig för hela nivån.</p>
-              </>
-            ) : (
-              <>
-                <p><strong>Mål:</strong> Gissa exakt årsmodell med slidern.</p>
-                <p><strong>Motorlampa:</strong> 3 missar (>2 år fel) ger motorras!</p>
-                <p><strong>Bonus:</strong> Tid kvar ger extrapoäng.</p>
-              </>
-            )}
+            <p><strong>Regler:</strong> {level === 1 ? "Gissa märket på bilen." : "Gissa rätt årtal med slidern."}</p>
+            <p>Du har 25 frågor framför dig.</p>
           </div>
-          <button onClick={prepareLevel} style={styles.primaryButton}>STARTA NIVÅN</button>
+          <button onClick={startPlaying} style={styles.primaryButton}>STARTA SPEL</button>
         </div>
       </div>
     );
   }
 
-  // KORT: Mellanskärm / Google Ad
-  if (gameState === 'interstitial') {
+  if (gameState === 'card_ad') {
     return (
       <div style={styles.appWrapper}>
         <div style={styles.container}>
           <h2 style={{color: '#22c55e'}}>NIVÅ KLARAD!</h2>
-          <div style={styles.leaderboardBox}>
-            <h4 style={{marginTop: 0, color: '#fbbf24', textAlign: 'center'}}>TOPPLISTA 🏆</h4>
-            {leaderboard.map((entry, i) => (
-              <div key={i} style={styles.leaderboardEntry}>
-                <span>{i+1}. {entry.alias}</span>
-                <span style={{fontWeight: 'bold'}}>{entry.total_score}p</span>
-              </div>
-            ))}
-          </div>
-          <div style={styles.googleAdWrapper}>ANNONSFRITT UNDER TEST</div>
-          <button onClick={() => { setLevel(level + 1); setGameState('info_level'); }} style={styles.primaryButton}>GÅ VIDARE</button>
+          <div style={styles.googleAdWrapper}>REKLAMPLATS</div>
+          <button onClick={() => { setLevel(level + 1); setGameState('card_level_info'); }} style={styles.primaryButton}>NÄSTA NIVÅ</button>
         </div>
       </div>
     );
   }
 
-  // ... (Behåll playing-vyn men använd renderGameControls för slider-fixen) ...
+  if (gameState === 'failed') {
+    return (
+      <div style={styles.appWrapper}>
+        <div style={styles.container}>
+          <h1 style={{color: '#ef4444'}}>GAME OVER</h1>
+          <button onClick={() => window.location.reload()} style={styles.primaryButton}>FÖRSÖK IGEN</button>
+        </div>
+      </div>
+    );
+  }
+
+  const currentCar = questions[currentQuestion];
+  if (!currentCar) return <div style={styles.appWrapper}>Laddar...</div>;
+
+  return (
+    <div style={styles.appWrapper}>
+      <div style={styles.container}>
+        <div style={styles.imageContainer}>
+          <img key={currentCar.file_name} src={currentCar.imageUrl} alt="Car" style={styles.carImage} />
+        </div>
+        {!feedback ? (
+          level === 1 ? (
+            <div style={styles.grid}>
+              {options.map((m, i) => <button key={i} onClick={() => handleAnswer(m)} style={styles.boneButton}>{m}</button>)}
+            </div>
+          ) : (
+            <div style={styles.sliderContainer}>
+              <div style={styles.yearDisplay}>{sliderValue}</div>
+              <input type="range" min="1945" max="1965" step="1" value={sliderValue} onChange={(e) => setSliderValue(e.target.value)} style={styles.slider} />
+              <button onClick={() => handleAnswer()} style={styles.primaryButton}>GISSÅ ÅR</button>
+            </div>
+          )
+        ) : (
+          <div style={styles.feedbackCard}>
+            <p>{feedback.details}</p>
+            <button onClick={handleNext} style={styles.primaryButton}>NÄSTA</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const styles = {
+  appWrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#020617', color: '#f8fafc', padding: '20px' },
+  container: { width: '100%', maxWidth: '400px', textAlign: 'center' },
+  infoBox: { backgroundColor: '#1e293b', padding: '20px', borderRadius: '15px', marginBottom: '20px', textAlign: 'left' },
+  input: { width: '100%', padding: '15px', borderRadius: '10px', marginBottom: '10px', boxSizing: 'border-box' },
+  primaryButton: { width: '100%', padding: '15px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' },
+  loginForm: { display: 'flex', flexDirection: 'column' }, // Logik: Staplar fält vertikalt
+  imageContainer: { width: '100%', aspectRatio: '4/3', marginBottom: '20px' },
+  carImage: { width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px' },
+  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' },
+  boneButton: { padding: '15px', backgroundColor: '#f5f5f0', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 'bold' },
+  sliderContainer: { backgroundColor: '#1e293b', padding: '20px', borderRadius: '10px' },
+  yearDisplay: { fontSize: '32px', marginBottom: '10px' },
+  slider: { width: '100%', marginBottom: '10px' },
+  googleAdWrapper: { height: '200px', backgroundColor: '#0f172a', border: '1px dashed #ccc', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' },
+  feedbackCard: { padding: '20px', backgroundColor: '#1e293b', borderRadius: '10px' }
+};
+
+export default App;
