@@ -1,4 +1,4 @@
-// Version: 2.7.2 - Layout Fix: Vertical Login Stack and test
+// Version: 2.8 - Final Layout Fix & Leaderboard Integration
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 
@@ -20,7 +20,9 @@ function App() {
   const [failReason, setFailReason] = useState("");
   const [timeLeft, setTimeLeft] = useState(250); 
   const [timerActive, setTimerActive] = useState(false);
+  const [leaderboard, setLeaderboard] = useState([]); // För topplistan
 
+  // Hämta bilar vid start
   useEffect(() => {
     async function fetchAllCars() {
       const { data, error } = await supabase.from('cars').select('*');
@@ -28,6 +30,16 @@ function App() {
     }
     fetchAllCars();
   }, []);
+
+  // Funktion för att hämta topplistan
+  const fetchLeaderboard = async () => {
+    const { data } = await supabase
+      .from('leaderboard')
+      .select('alias, total_score')
+      .order('total_score', { ascending: false })
+      .limit(5);
+    if (data) setLeaderboard(data);
+  };
 
   const saveProgress = async (finalScore, nextLevel) => {
     if (!user) return;
@@ -49,6 +61,7 @@ function App() {
   };
 
   const prepareLevel = (targetLevel) => {
+    if (allCars.length === 0) return;
     const shuffled = [...allCars].sort(() => 0.5 - Math.random()).slice(0, 25).map(car => ({
         ...car, imageUrl: supabase.storage.from('Cars88').getPublicUrl(car.file_name).data.publicUrl
     }));
@@ -114,7 +127,7 @@ function App() {
     setFeedback({ isCorrect: !isMiss, details: `Det var en ${currentCar.year} ${currentCar.make}. +${points}p` });
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     setFeedback(null);
     if (currentQuestion + 1 < questions.length) {
       setCurrentQuestion(currentQuestion + 1);
@@ -122,20 +135,23 @@ function App() {
       setTimerActive(false);
       const finalScore = score + (timeLeft * 10);
       setScore(finalScore);
-      saveProgress(finalScore, level + 1);
+      await saveProgress(finalScore, level + 1);
+      await fetchLeaderboard(); // Hämta ny topplista
       setGameState('interstitial');
     }
   };
 
-  // --- VIEWS ---
+  // --- RENDERING ---
 
   if (isLocked) {
     return (
       <div style={styles.appWrapper}>
         <div style={styles.container}>
           <h1>TIMEDE.SE 🔒</h1>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={styles.input} />
-          <button onClick={() => password === 'bil88' ? setIsLocked(false) : alert("Fel!")} style={styles.primaryButton}>LÅS UPP</button>
+          <div style={styles.loginForm}>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={styles.input} placeholder="Lösenord" />
+            <button onClick={() => password === 'bil88' ? setIsLocked(false) : alert("Fel!")} style={styles.primaryButton}>LÅS UPP</button>
+          </div>
         </div>
       </div>
     );
@@ -147,13 +163,12 @@ function App() {
         <div style={styles.container}>
           <h2 style={{fontSize: '24px', marginBottom: '15px'}}>Välkommen till Bilquizet! 🏎️</h2>
           <div style={styles.infoBox}>
-            <p style={{fontSize: '14px', marginBottom: '10px'}}>Ange alias för att spara framsteg och tävla om priser!</p>
+            <p style={{fontSize: '14px', marginBottom: '10px'}}>Ange alias för att tävla om veckopriser!</p>
             <ul style={{fontSize: '12px', textAlign: 'left', color: '#cbd5e1', margin: 0, paddingLeft: '20px'}}>
               <li>Rätt år: 100p | 1 år fel: 50p | 2 år fel: 25p</li>
               <li>3 missar (>2 år fel) = Game Over</li>
             </ul>
           </div>
-          
           <div style={styles.loginForm}>
             <input placeholder="Ditt Alias" value={user} onChange={(e) => setUser(e.target.value)} style={styles.input} />
             <input placeholder="E-post (valfritt)" value={email} onChange={(e) => setEmail(e.target.value)} style={styles.input} />
@@ -168,8 +183,21 @@ function App() {
     return (
       <div style={styles.appWrapper}>
         <div style={styles.container}>
-          <h2 style={{color: '#22c55e'}}>NIVÅ {level} KLARAD!</h2>
-          <div style={styles.resultCard}><h3>DIN TOTALA POÄNG: {score}</h3></div>
+          <h2 style={{color: '#22c55e', marginBottom: '10px'}}>NIVÅ {level} KLARAD!</h2>
+          <div style={styles.resultCard}>
+             <h3 style={{margin: 0}}>DIN POÄNG: {score}</h3>
+          </div>
+          
+          <div style={styles.leaderboardBox}>
+            <h4 style={{marginTop: 0, color: '#fbbf24'}}>VECKANS TOPPLISTA 🏆</h4>
+            {leaderboard.map((entry, i) => (
+              <div key={i} style={styles.leaderboardEntry}>
+                <span>{i+1}. {entry.alias}</span>
+                <span style={{fontWeight: 'bold'}}>{entry.total_score}p</span>
+              </div>
+            ))}
+          </div>
+
           <div style={styles.googleAdWrapper}>ANNONSPLATS (300x250)</div>
           <button onClick={() => prepareLevel(level + 1)} style={styles.primaryButton}>NÄSTA NIVÅ</button>
         </div>
@@ -190,6 +218,7 @@ function App() {
   }
 
   const currentCar = questions[currentQuestion];
+  if (!currentCar) return <div style={styles.appWrapper}>Laddar motorer...</div>;
 
   return (
     <div style={styles.appWrapper}>
@@ -198,78 +227,4 @@ function App() {
           <div style={styles.gaugeChromeRing}>
             <div style={styles.gaugeBackground}>
                 <div style={{ ...styles.gaugeNeedle, transform: `translateX(-50%) rotate(${(timeLeft / (level === 1 ? 250 : 225)) * 140 - 70}deg)` }} />
-                <div style={styles.labelE}>E</div><div style={styles.labelF}>F</div>
-                <div style={styles.fuelText}>FUEL</div>
-            </div>
-          </div>
-        </div>
-        <div style={styles.imageContainer}>
-          <img key={currentCar?.file_name} src={currentCar?.imageUrl} alt="Car" style={styles.carImage} />
-        </div>
-        {!feedback ? (
-          level === 1 ? (
-            <div style={styles.grid}>
-              {options.map((m, i) => <button key={i} onClick={() => handleAnswer(m)} style={styles.boneButton}>{m}</button>)}
-            </div>
-          ) : (
-            <div style={styles.sliderContainer}>
-              <div style={styles.yearDisplay}>{sliderValue}</div>
-              <input type="range" min="1945" max="1965" step="1" value={sliderValue} onChange={(e) => setSliderValue(e.target.value)} style={styles.slider} />
-              <button onClick={() => handleAnswer()} style={styles.primaryButton}>LÅS ÅRSMODELL</button>
-            </div>
-          )
-        ) : (
-          <div style={{...styles.feedbackCard, backgroundColor: feedback.isCorrect ? '#dcfce7' : '#fee2e2'}}>
-            <p style={{color: '#111827', fontWeight: 'bold'}}>{feedback.details}</p>
-            <button onClick={handleNext} style={styles.primaryButton}>NÄSTA</button>
-          </div>
-        )}
-        <div style={styles.statusRowBottom}>
-          <div style={styles.statusBox}>
-            <div style={{fontSize: '9px', color: '#94a3b8'}}>CHECK ENGINE</div>
-            <div style={{display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '5px'}}>
-              <div style={{...styles.engineLight, backgroundColor: mistakes >= 1 ? '#ff0000' : '#1e293b'}} />
-              <div style={{...styles.engineLight, backgroundColor: mistakes >= 2 ? '#ff0000' : '#1e293b'}} />
-              <div style={{...styles.engineLight, backgroundColor: mistakes >= 3 ? '#ff0000' : '#1e293b'}} />
-            </div>
-          </div>
-          <div style={styles.statusBox}>
-            <div style={{fontSize: '9px', color: '#94a3b8'}}>PROGRESS</div>
-            <div style={{fontSize: '18px', fontWeight: 'bold'}}>{currentQuestion + 1} / 25</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const styles = {
-  appWrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#020617', padding: '15px', color: '#f8fafc', fontFamily: 'serif' },
-  container: { width: '100%', maxWidth: '400px', textAlign: 'center', boxSizing: 'border-box' },
-  retroGaugeContainer: { display: 'flex', justifyContent: 'center', height: '140px', position: 'relative', marginBottom: '20px' },
-  gaugeChromeRing: { width: '210px', height: '210px', borderRadius: '50%', background: 'linear-gradient(145deg, #94a3b8, #f8fafc, #475569)', display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'absolute', top: '-100px' },
-  gaugeBackground: { width: '190px', height: '190px', borderRadius: '50%', backgroundColor: '#ecece4', position: 'relative', overflow: 'hidden' },
-  gaugeNeedle: { position: 'absolute', bottom: '50%', left: '50%', width: '4px', height: '75px', backgroundColor: '#b91c1c', transformOrigin: 'bottom center', zIndex: '10', transition: 'transform 0.5s ease' },
-  labelE: { position: 'absolute', bottom: '28%', left: '18%', color: '#000', fontWeight: 'bold' },
-  labelF: { position: 'absolute', bottom: '28%', right: '18%', color: '#000', fontWeight: 'bold' },
-  fuelText: { position: 'absolute', top: '60%', left: '50%', transform: 'translateX(-50%)', fontSize: '14px', color: '#000', fontWeight: 'bold' },
-  imageContainer: { width: '100%', aspectRatio: '4/3', borderRadius: '12px', overflow: 'hidden', border: '6px solid #1e293b', marginBottom: '20px' },
-  carImage: { width: '100%', height: '100%', objectFit: 'cover' },
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' },
-  boneButton: { padding: '18px 5px', borderRadius: '10px', backgroundColor: '#f5f5f0', color: '#1f2937', fontWeight: 'bold', cursor: 'pointer' },
-  sliderContainer: { backgroundColor: '#1e293b', padding: '20px', borderRadius: '15px' },
-  yearDisplay: { fontSize: '40px', color: '#fbbf24', fontWeight: 'bold', marginBottom: '10px' },
-  slider: { width: '100%', marginBottom: '20px', cursor: 'pointer' },
-  statusRowBottom: { display: 'flex', gap: '15px', marginTop: '25px' },
-  statusBox: { flex: 1, backgroundColor: '#0f172a', padding: '12px', borderRadius: '15px', border: '2px solid #1e293b' },
-  engineLight: { width: '14px', height: '14px', borderRadius: '50%', border: '1px solid #000' },
-  primaryButton: { width: '100%', padding: '15px', backgroundColor: '#2563eb', color: 'white', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer', boxSizing: 'border-box' },
-  input: { width: '100%', padding: '15px', borderRadius: '10px', border: 'none', backgroundColor: '#1e293b', color: 'white', boxSizing: 'border-box', fontSize: '16px' },
-  loginForm: { display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }, // NYTT: Tvingar stapling
-  infoBox: { backgroundColor: '#1e293b', padding: '15px', borderRadius: '10px', marginBottom: '15px', textAlign: 'left' },
-  googleAdWrapper: { height: '250px', backgroundColor: '#0f172a', border: '1px dashed #475569', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '15px' },
-  resultCard: { backgroundColor: '#1e293b', padding: '15px', borderRadius: '10px', marginBottom: '15px' },
-  feedbackCard: { padding: '15px', borderRadius: '12px', border: '3px solid' }
-};
-
-export default App;
+                <div style={styles.labelE}>E</div>
