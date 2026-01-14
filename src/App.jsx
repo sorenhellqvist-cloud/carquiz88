@@ -1,4 +1,4 @@
-// Version: 2.7.2 - Layout Fix: Vertical Login Stack
+// Version: 2.7.2 - Layout Fix: Vertical Login Stack and test
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 
