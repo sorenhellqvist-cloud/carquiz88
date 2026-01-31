@@ -1,4 +1,4 @@
-// Version: 3.9 - Unique Alias Guard + Chrome Gauge + Ad Slot
+// Version: 3.9 - Complete App with Chrome Gauge, Ads Slot & Alias Guard
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 
@@ -32,6 +32,7 @@ function App() {
     fetchLeaderboard();
   }, []);
 
+  // Analog Timer-logik för bensinmätaren
   useEffect(() => {
     let interval;
     if (timerActive && timeLeft > 0) {
@@ -48,7 +49,7 @@ function App() {
     if (data) setLeaderboard(data);
   };
 
-  // NY LOGIK: Kontrollera unika alias
+  // ALIAS-VAKT: Kontrollerar unika namn mot databasen
   const handleAuthCheck = async () => {
     if (!user || user.trim() === "") {
       alert("Vänligen välj ett alias!");
@@ -63,14 +64,13 @@ function App() {
       .single();
 
     if (existingUser) {
-      // Om aliaset finns, kolla om e-posten matchar (inloggning)
+      // Om namnet finns krävs rätt e-post för att "logga in"
       if (email && existingUser.email === email) {
         setLevel(existingUser.current_level);
         setScore(existingUser.total_score);
         setGameState('card_level_rules');
       } else {
-        // Annars stoppa för att undvika dubbletter i leaderboard
-        alert("Detta alias används redan. Välj ett annat namn eller ange rätt e-post för att fortsätta.");
+        alert("Detta alias används redan. Välj ett annat namn eller ange rätt e-post.");
         return;
       }
     } else {
@@ -123,130 +123,141 @@ function App() {
   const handleNext = async () => {
     setFeedback(null);
     if (currentQuestion + 1 < questions.length) {
-      setCurrentQuestion(currentQuestion + 1);
+      setCurrentQuestion(prev => prev + 1);
     } else {
+      setGameState('level_complete');
       setTimerActive(false);
-      const bonus = timeLeft * 10;
-      const finalScore = score + bonus;
-      setScore(finalScore);
-      await supabase.from('leaderboard').upsert({ 
-        alias: user.trim(), 
-        email, 
-        current_level: level + 1, 
-        total_score: finalScore 
-      }, { onConflict: 'alias' });
-      fetchLeaderboard();
-      setGameState('card_ad');
+      await saveProgress();
     }
   };
 
-  const getNeedleRotation = () => ( (timeLeft / MAX_TIME) * 180 ) - 90;
+  const saveProgress = async () => {
+    const { data: existing } = await supabase.from('leaderboard').select('*').eq('alias', user.trim()).single();
+    if (existing) {
+      await supabase.from('leaderboard').update({
+        total_score: existing.total_score + score,
+        current_level: level + 1
+      }).eq('alias', user.trim());
+    } else {
+      await supabase.from('leaderboard').insert({
+        alias: user.trim(),
+        email: email || null,
+        total_score: score,
+        current_level: level + 1
+      });
+    }
+    await fetchLeaderboard();
+  };
 
-  // --- RENDERING ---
+  useEffect(() => {
+    if (questions.length > 0 && gameState === 'playing' && level === 1 && !feedback) {
+      const currentCar = questions[currentQuestion];
+      const allMakes = [...new Set(allCars.map(q => q.make))];
+      const wrong = allMakes.filter(m => m !== currentCar.make).sort(() => 0.5 - Math.random()).slice(0, 3);
+      setOptions([currentCar.make, ...wrong].sort(() => 0.5 - Math.random()));
+    }
+  }, [currentQuestion, questions, gameState, level, feedback, allCars]);
 
-  if (isLocked) {
-    return (
-      <div style={styles.appWrapper}>
-        <div style={styles.container}>
-          <h1>TIMEDE.SE 🔒</h1>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={styles.input} placeholder="Lösenord" />
-          <button onClick={() => password === 'bil88' ? setIsLocked(false) : alert("Fel!")} style={styles.primaryButton}>ÖPPNA</button>
-        </div>
-      </div>
-    );
-  }
+  // Bensinmätare med Chrome-design
+  const gaugePercent = (timeLeft / MAX_TIME) * 100;
+  const gaugeColor = gaugePercent > 40 ? '#22c55e' : gaugePercent > 20 ? '#f59e0b' : '#ef4444';
 
-  if (gameState === 'card_welcome' || gameState === 'card_inputs' || gameState === 'card_level_rules') {
-    return (
-      <div style={styles.appWrapper}>
-        <div style={styles.container}>
-          {gameState === 'card_welcome' && (
-            <>
-              <h2 style={styles.title}>Välkommen! 🏎️</h2>
-              <div style={styles.infoBox}>
-                <p><strong>Alias:</strong> Krävs för att du ska synas på topplistan.</p>
-                <p style={{marginTop: '15px'}}><strong>E-post:</strong> Valfritt, men behövs om du vill fortsätta spela på ditt alias senare.</p>
-              </div>
-              <button onClick={() => setGameState('card_inputs')} style={styles.primaryButton}>NÄSTA</button>
-            </>
-          )}
-          {gameState === 'card_inputs' && (
-            <>
-              <h2 style={styles.title}>Vem kör idag?</h2>
-              <div style={styles.loginForm}>
-                <input placeholder="Välj ett unikt alias" value={user} onChange={(e) => setUser(e.target.value)} style={styles.input} />
-                <input placeholder="Din E-post (valfritt)" value={email} onChange={(e) => setEmail(e.target.value)} style={styles.input} />
-                <button onClick={handleAuthCheck} style={styles.primaryButton}>KONTROLLERA NAMN</button>
-              </div>
-            </>
-          )}
-          {gameState === 'card_level_rules' && (
-            <>
-              <h2 style={styles.title}>Nivå {level}</h2>
-              <div style={styles.infoBox}>
-                <p><strong>Mål:</strong> {level === 1 ? "Välj rätt bilmärke." : "Gissa rätt år."}</p>
-                <p style={{marginTop: '15px'}}><strong>Motorras:</strong> Vid 3 fel får du börja om nivån.</p>
-              </div>
-              <button onClick={startLevel} style={styles.primaryButton}>STARTA SPEL</button>
-            </>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  if (gameState === 'playing') {
-    const currentCar = questions[currentQuestion];
-    if (!currentCar) return <div style={styles.appWrapper}>Laddar...</div>;
-    return (
-      <div style={styles.appWrapper}>
-        <div style={styles.container}>
-          <div style={styles.gaugeOuter}>
-            <div style={styles.gaugeInner}>
-              <div style={styles.gaugeScale}><span style={styles.scaleE}>E</span><span style={styles.scaleF}>F</span><div style={styles.gaugeLabel}>FUEL</div></div>
-              <div style={{...styles.needle, transform: `translateX(-50%) rotate(${getNeedleRotation()}deg)`}}></div>
-              <div style={styles.needleHub}></div><div style={styles.gaugeGlass}></div>
-            </div>
-          </div>
-          <div style={styles.imageContainer}><img src={currentCar.imageUrl} alt="Car" style={styles.carImage} /></div>
-          {!feedback ? (
-            level === 1 ? (
-              <div style={styles.grid}>{options.map((m, i) => <button key={i} onClick={() => handleAnswer(m)} style={styles.boneButton}>{m}</button>)}</div>
-            ) : (
-              <div style={styles.sliderContainer}>
-                <div style={styles.yearDisplay}>{sliderValue}</div>
-                <input type="range" min="1945" max="1965" step="1" value={sliderValue} onChange={(e) => setSliderValue(e.target.value)} style={styles.slider} />
-                <button onClick={() => handleAnswer()} style={styles.primaryButton}>LÅS ÅR</button>
-              </div>
-            )
-          ) : (
-            <div style={styles.feedbackCard}><p style={{fontWeight: 'bold', color: '#000'}}>{feedback.details}</p><button onClick={handleNext} style={styles.primaryButton}>NÄSTA</button></div>
-          )}
-          <div style={styles.statusRowBottom}>
-            <div style={styles.statusBox}>
-              <div style={{fontSize: '9px', color: '#94a3b8'}}>CHECK ENGINE</div>
-              <div style={{display: 'flex', gap: '5px', justifyContent: 'center', marginTop: '5px'}}>
-                {[1, 2, 3].map(i => <div key={i} style={{width: '12px', height: '12px', borderRadius: '50%', backgroundColor: (mistakes >= i) ? '#f00' : '#1e293b', boxShadow: (mistakes >= i) ? '0 0 8px #f00' : 'none', border: '1px solid #000'}} />)}
-              </div>
-            </div>
-            <div style={styles.statusBox}><div style={{fontSize: '9px', color: '#94a3b8'}}>PROGRESS</div><div style={{fontWeight: 'bold'}}>{currentQuestion + 1} / 25</div></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const styles = {
+    app: { fontFamily: 'Arial, sans-serif', background: 'linear-gradient(135deg, #1e293b, #334155)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', boxSizing: 'border-box' },
+    card: { background: '#fff', borderRadius: '16px', boxShadow: '0 10px 40px rgba(0,0,0,0.3)', maxWidth: '600px', width: '100%', padding: '40px', textAlign: 'center' },
+    title: { fontSize: '28px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' },
+    input: { width: '100%', padding: '12px', marginTop: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '16px', boxSizing: 'border-box' },
+    button: { background: '#3b82f6', color: '#fff', padding: '14px 28px', borderRadius: '8px', border: 'none', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', marginTop: '16px' },
+    image: { width: '100%', maxHeight: '300px', objectFit: 'cover', borderRadius: '12px', marginBottom: '20px' },
+    optionButton: { display: 'block', width: '100%', padding: '12px', margin: '8px 0', background: '#e2e8f0', border: 'none', borderRadius: '8px', fontSize: '16px', cursor: 'pointer' },
+    feedbackCorrect: { color: '#22c55e', fontWeight: 'bold', marginTop: '12px' },
+    feedbackWrong: { color: '#ef4444', fontWeight: 'bold', marginTop: '12px' },
+    gauge: { width: '120px', height: '120px', borderRadius: '50%', border: '8px solid #e2e8f0', position: 'relative', margin: '20px auto', background: `conic-gradient(${gaugeColor} ${gaugePercent}%, #e2e8f0 ${gaugePercent}%)` },
+    gaugeInner: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '24px', fontWeight: 'bold', color: '#1e293b' },
+    leaderboard: { marginTop: '20px', textAlign: 'left' },
+    leaderboardItem: { display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #e2e8f0' },
+    adSlot: { marginTop: '20px', padding: '16px', background: '#f1f5f9', borderRadius: '8px', border: '1px dashed #cbd5e1', minHeight: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+  };
 
   return (
-    <div style={styles.appWrapper}>
-      <div style={styles.container}>
-        {gameState === 'failed' && (
-          <><h1 style={{color: '#ef4444'}}>MOTORRAS!</h1><button onClick={() => window.location.reload()} style={styles.primaryButton}>FÖRSÖK IGEN</button></>
-        )}
-        {gameState === 'card_ad' && (
+    <div style={styles.app}>
+      <div style={styles.card}>
+        {gameState === 'card_welcome' && (
           <>
-            <h2 style={{color: '#22c55e'}}>KLARAD!</h2>
-            <div style={styles.leaderboardBox}>
-              <h4 style={{textAlign: 'center', color: '#fbbf24', margin: '0 0 10px 0'}}>TOPPLISTA 🏆</h4>
-              {leaderboard.map((entry, i) => <div key={i} style={styles.leaderboardEntry}><span>{i+1}. {entry.alias}</span><span>{entry.total_score}p</span></div>)}
+            <h1 style={styles.title}>🚗 CarQuiz88</h1>
+            <p>Testa dina bilkunskaper genom tiderna!</p>
+            <input style={styles.input} type="text" placeholder="Välj ett alias" value={user} onChange={(e) => setUser(e.target.value)} />
+            <input style={styles.input} type="email" placeholder="E-post (valfritt, för att återuppta)" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <button style={styles.button} onClick={handleAuthCheck}>Fortsätt</button>
+            <div style={styles.leaderboard}>
+              <h3>🏆 Topplista</h3>
+              {leaderboard.map((entry, i) => (
+                <div key={i} style={styles.leaderboardItem}>
+                  <span>{i + 1}. {entry.alias}</span>
+                  <span>{entry.total_score} p</span>
+                </div>
+              ))}
             </div>
-            <div style={styles.adSlot}><span style={{fontSize: '10px', color: '#475569'}}>ANNONS</span><div style={styles
+            <div style={styles.adSlot}><span style={{fontSize: '10px', color: '#475569'}}>ANNONS</span></div>
+          </>
+        )}
+
+        {gameState === 'card_level_rules' && (
+          <>
+            <h2 style={styles.title}>Level {level}</h2>
+            <p>{level === 1 ? "Gissa bilmärket!" : "Gissa årsmodellen!"}</p>
+            <p>Du har {MAX_TIME} sekunder och 3 liv.</p>
+            <button style={styles.button} onClick={startLevel}>Starta</button>
+          </>
+        )}
+
+        {gameState === 'playing' && questions.length > 0 && (
+          <>
+            <div style={styles.gauge}>
+              <div style={styles.gaugeInner}>{timeLeft}s</div>
+            </div>
+            <p>Fråga {currentQuestion + 1}/{questions.length} | Poäng: {score} | Liv: {3 - mistakes}</p>
+            <img style={styles.image} src={questions[currentQuestion].imageUrl} alt="car" />
+            {level === 1 && !feedback && options.map((opt, i) => (
+              <button key={i} style={styles.optionButton} onClick={() => handleAnswer(opt)}>{opt}</button>
+            ))}
+            {level === 2 && !feedback && (
+              <>
+                <input type="range" min="1920" max="2024" value={sliderValue} onChange={(e) => setSliderValue(e.target.value)} style={{width: '100%'}} />
+                <p>År: {sliderValue}</p>
+                <button style={styles.button} onClick={() => handleAnswer(sliderValue)}>Svara</button>
+              </>
+            )}
+            {feedback && (
+              <>
+                <p style={feedback.isCorrect ? styles.feedbackCorrect : styles.feedbackWrong}>
+                  {feedback.isCorrect ? '✅ Rätt!' : '❌ Fel!'}
+                </p>
+                <p>{feedback.details}</p>
+                <button style={styles.button} onClick={handleNext}>Nästa</button>
+              </>
+            )}
+          </>
+        )}
+
+        {gameState === 'level_complete' && (
+          <>
+            <h2 style={styles.title}>🎉 Level {level} klar!</h2>
+            <p>Din poäng: {score}</p>
+            <button style={styles.button} onClick={() => { setLevel(level + 1); setScore(0); setGameState('card_level_rules'); }}>Nästa level</button>
+          </>
+        )}
+
+        {gameState === 'failed' && (
+          <>
+            <h2 style={styles.title}>😢 Game Over</h2>
+            <p>Poäng: {score}</p>
+            <button style={styles.button} onClick={() => { setGameState('card_welcome'); setScore(0); setLevel(1); setUser(""); setEmail(""); }}>Tillbaka</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default App;
