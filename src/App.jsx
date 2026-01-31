@@ -1,4 +1,4 @@
-// Version: 3.9.1 - Fix: Square images & Chrome Gauge with Arrow Needle
+// Version: 3.9.2 - Fix: Restore Answer Buttons & Layout Alignment
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 
@@ -42,6 +42,15 @@ function App() {
     }
     return () => clearInterval(interval);
   }, [timerActive, timeLeft, gameState]);
+
+  useEffect(() => {
+    if (questions.length > 0 && gameState === 'playing' && level === 1 && !feedback) {
+      const currentCar = questions[currentQuestion];
+      const allMakes = [...new Set(allCars.map(q => q.make))];
+      const wrong = allMakes.filter(m => m !== currentCar.make).sort(() => 0.5 - Math.random()).slice(0, 3);
+      setOptions([currentCar.make, ...wrong].sort(() => 0.5 - Math.random()));
+    }
+  }, [currentQuestion, questions, gameState, level, feedback, allCars]);
 
   const fetchLeaderboard = async () => {
     const { data } = await supabase.from('leaderboard').select('alias, total_score').order('total_score', { ascending: false }).limit(5);
@@ -142,36 +151,15 @@ function App() {
     return (
       <div style={styles.appWrapper}>
         <div style={styles.container}>
-          {gameState === 'card_welcome' && (
-            <>
-              <h2 style={styles.title}>Välkommen! 🏎️</h2>
-              <div style={styles.infoBox}>
-                <p><strong>Varför Alias?</strong> För att tävla på topplistan.</p>
-                <p style={{marginTop: '15px'}}><strong>Varför E-post?</strong> Skyddar ditt namn. (Valfritt)</p>
-              </div>
-              <button onClick={() => setGameState('card_inputs')} style={styles.primaryButton}>NÄSTA</button>
-            </>
-          )}
-          {gameState === 'card_inputs' && (
-            <>
-              <h2 style={styles.title}>Vem kör idag?</h2>
-              <div style={styles.loginForm}>
-                <input placeholder="Ditt unika alias" value={user} onChange={(e) => setUser(e.target.value)} style={styles.input} />
-                <input placeholder="Din E-post (valfritt)" value={email} onChange={(e) => setEmail(e.target.value)} style={styles.input} />
-                <button onClick={handleAuthCheck} style={styles.primaryButton}>GÅ VIDARE</button>
-              </div>
-            </>
-          )}
-          {gameState === 'card_level_rules' && (
-            <>
-              <h2 style={styles.title}>Nivå {level}</h2>
-              <div style={styles.infoBox}>
-                <p><strong>Uppgift:</strong> {level === 1 ? "Välj rätt bilmärke." : "Gissa rätt årtal."}</p>
-                <p style={{marginTop: '15px'}}><strong>Lamporna:</strong> 3 fel = Motorras.</p>
-              </div>
-              <button onClick={startLevel} style={styles.primaryButton}>STARTA SPEL</button>
-            </>
-          )}
+          <h2 style={styles.title}>{gameState === 'card_welcome' ? "Välkommen! 🏎️" : gameState === 'card_inputs' ? "Vem kör idag?" : `Nivå ${level}`}</h2>
+          <div style={styles.infoBox}>
+            {gameState === 'card_welcome' && <><p><strong>Alias:</strong> Krävs för topplistan.</p><p style={{marginTop: '15px'}}><strong>E-post:</strong> Skyddar ditt namn.</p></>}
+            {gameState === 'card_inputs' && <><input placeholder="Ditt unika alias" value={user} onChange={(e) => setUser(e.target.value)} style={styles.input} /><input placeholder="Din E-post (valfritt)" value={email} onChange={(e) => setEmail(e.target.value)} style={styles.input} /></>}
+            {gameState === 'card_level_rules' && <><p><strong>Uppgift:</strong> {level === 1 ? "Välj rätt bilmärke." : "Gissa rätt årtal."}</p><p style={{marginTop: '15px'}}><strong>Lamporna:</strong> 3 fel = Motorras.</p></>}
+          </div>
+          <button onClick={gameState === 'card_inputs' ? handleAuthCheck : gameState === 'card_level_rules' ? startLevel : () => setGameState('card_inputs')} style={styles.primaryButton}>
+            {gameState === 'card_level_rules' ? "STARTA SPEL" : "NÄSTA"}
+          </button>
         </div>
       </div>
     );
@@ -179,34 +167,35 @@ function App() {
 
   if (gameState === 'playing') {
     const currentCar = questions[currentQuestion];
-    if (!currentCar) return <div style={styles.appWrapper}>Laddar...</div>;
+    if (!currentCar) return <div style={styles.appWrapper}>Laddar bilar...</div>;
     return (
       <div style={styles.appWrapper}>
         <div style={styles.container}>
-          {/* RUND CHROMAD MÄTARE MED PIL */}
           <div style={styles.gaugeOuter}>
             <div style={styles.gaugeInner}>
               <div style={styles.gaugeScale}><span style={styles.scaleE}>E</span><span style={styles.scaleF}>F</span><div style={styles.gaugeLabel}>FUEL</div></div>
-              <div style={{...styles.needle, transform: `translateX(-50%) rotate(${getNeedleRotation()}deg)`}}>
-                <div style={styles.needleArrow}></div>
-              </div>
+              <div style={{...styles.needle, transform: `translateX(-50%) rotate(${getNeedleRotation()}deg)`}}><div style={styles.needleArrow}></div></div>
               <div style={styles.needleHub}></div><div style={styles.gaugeGlass}></div>
             </div>
           </div>
           <div style={styles.imageContainer}><img src={currentCar.imageUrl} alt="Car" style={styles.carImage} /></div>
-          {!feedback ? (
-            level === 1 ? (
-              <div style={styles.grid}>{options.map((m, i) => <button key={i} onClick={() => handleAnswer(m)} style={styles.boneButton}>{m}</button>)}</div>
+          
+          <div style={styles.interactionArea}>
+            {!feedback ? (
+              level === 1 ? (
+                <div style={styles.grid}>{options.map((m, i) => <button key={i} onClick={() => handleAnswer(m)} style={styles.boneButton}>{m}</button>)}</div>
+              ) : (
+                <div style={styles.sliderContainer}>
+                  <div style={styles.yearDisplay}>{sliderValue}</div>
+                  <input type="range" min="1945" max="1965" step="1" value={sliderValue} onChange={(e) => setSliderValue(e.target.value)} style={styles.slider} />
+                  <button onClick={() => handleAnswer()} style={styles.primaryButton}>LÅS ÅR</button>
+                </div>
+              )
             ) : (
-              <div style={styles.sliderContainer}>
-                <div style={styles.yearDisplay}>{sliderValue}</div>
-                <input type="range" min="1945" max="1965" step="1" value={sliderValue} onChange={(e) => setSliderValue(e.target.value)} style={styles.slider} />
-                <button onClick={() => handleAnswer()} style={styles.primaryButton}>LÅS ÅR</button>
-              </div>
-            )
-          ) : (
-            <div style={styles.feedbackCard}><p style={{fontWeight: 'bold', color: '#000'}}>{feedback.details}</p><button onClick={handleNext} style={styles.primaryButton}>NÄSTA</button></div>
-          )}
+              <div style={styles.feedbackCard}><p style={{fontWeight: 'bold', color: '#000'}}>{feedback.details}</p><button onClick={handleNext} style={styles.primaryButton}>NÄSTA</button></div>
+            )}
+          </div>
+
           <div style={styles.statusRowBottom}>
             <div style={styles.statusBox}>
               <div style={{fontSize: '9px', color: '#94a3b8'}}>CHECK ENGINE</div>
@@ -224,19 +213,9 @@ function App() {
   return (
     <div style={styles.appWrapper}>
       <div style={styles.container}>
-        {gameState === 'failed' && (
-          <><h1 style={{color: '#ef4444'}}>MOTORRAS!</h1><button onClick={() => window.location.reload()} style={styles.primaryButton}>FÖRSÖK IGEN</button></>
-        )}
+        {gameState === 'failed' && <><h1 style={{color: '#ef4444'}}>MOTORRAS!</h1><button onClick={() => window.location.reload()} style={styles.primaryButton}>FÖRSÖK IGEN</button></>}
         {gameState === 'card_ad' && (
-          <>
-            <h2 style={{color: '#22c55e'}}>KLARAD!</h2>
-            <div style={styles.leaderboardBox}>
-              <h4 style={{textAlign: 'center', color: '#fbbf24', margin: '0 0 10px 0'}}>TOPPLISTA 🏆</h4>
-              {leaderboard.map((entry, i) => <div key={i} style={styles.leaderboardEntry}><span>{i+1}. {entry.alias}</span><span>{entry.total_score}p</span></div>)}
-            </div>
-            <div style={styles.adSlot}><span style={{fontSize: '10px', color: '#475569'}}>ANNONS</span><div style={styles.adInner}>Google Ads</div></div>
-            <button onClick={() => { setLevel(level + 1); setGameState('card_level_rules'); }} style={styles.primaryButton}>NÄSTA NIVÅ</button>
-          </>
+          <><h2 style={{color: '#22c55e'}}>KLARAD!</h2><div style={styles.leaderboardBox}><h4 style={{textAlign: 'center', color: '#fbbf24', margin: '0 0 10px 0'}}>TOPPLISTA 🏆</h4>{leaderboard.map((entry, i) => <div key={i} style={styles.leaderboardEntry}><span>{i+1}. {entry.alias}</span><span>{entry.total_score}p</span></div>)}</div><div style={styles.adSlot}><span style={{fontSize: '10px', color: '#475569'}}>ANNONS</span><div style={styles.adInner}>Google Ads</div></div><button onClick={() => { setLevel(level + 1); setGameState('card_level_rules'); }} style={styles.primaryButton}>NÄSTA NIVÅ</button></>
         )}
       </div>
     </div>
@@ -244,39 +223,37 @@ function App() {
 }
 
 const styles = {
-  appWrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#020617', color: '#f8fafc', padding: '20px', fontFamily: 'sans-serif' },
-  container: { width: '100%', maxWidth: '400px', textAlign: 'center' },
-  // FYRKANTIG BILD
-  imageContainer: { width: '100%', aspectRatio: '1/1', marginBottom: '20px', borderRadius: '8px', overflow: 'hidden', border: '2px solid #1e293b' },
+  appWrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#020617', color: '#f8fafc', padding: '10px', fontFamily: 'sans-serif' },
+  container: { width: '100%', maxWidth: '380px', textAlign: 'center', display: 'flex', flexDirection: 'column' },
+  imageContainer: { width: '100%', aspectRatio: '1/1', marginBottom: '15px', borderRadius: '8px', overflow: 'hidden', border: '2px solid #1e293b', flexShrink: 0 },
   carImage: { width: '100%', height: '100%', objectFit: 'cover' },
-  // CHROMAD MÄTARE
-  gaugeOuter: { width: '110px', height: '110px', margin: '0 auto 15px', borderRadius: '50%', background: 'linear-gradient(145deg, #ffffff, #888888, #444444)', padding: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.7)', border: '2px solid #ccc' },
+  interactionArea: { minHeight: '140px', marginBottom: '10px' },
+  gaugeOuter: { width: '100px', height: '100px', margin: '0 auto 10px', borderRadius: '50%', background: 'linear-gradient(145deg, #ffffff, #888888, #444444)', padding: '5px', boxShadow: '0 4px 10px rgba(0,0,0,0.7)', border: '2px solid #ccc', flexShrink: 0 },
   gaugeInner: { width: '100%', height: '100%', backgroundColor: '#050505', borderRadius: '50%', position: 'relative', overflow: 'hidden', border: '1px solid #000' },
-  gaugeScale: { position: 'absolute', width: '100%', height: '100%', color: '#fff', fontSize: '12px', fontWeight: 'bold' },
-  scaleE: { position: 'absolute', left: '18px', bottom: '28px', color: '#ff4444' },
-  scaleF: { position: 'absolute', right: '18px', bottom: '28px' },
-  gaugeLabel: { position: 'absolute', width: '100%', bottom: '12px', fontSize: '8px', letterSpacing: '1px', color: '#444' },
-  needle: { position: 'absolute', bottom: '50%', left: '50%', width: '2px', height: '42px', backgroundColor: '#ff0000', transformOrigin: 'bottom center', transition: 'transform 0.6s ease-out', zIndex: 2 },
+  gaugeScale: { position: 'absolute', width: '100%', height: '100%', color: '#fff', fontSize: '11px', fontWeight: 'bold' },
+  scaleE: { position: 'absolute', left: '15px', bottom: '25px', color: '#ff4444' },
+  scaleF: { position: 'absolute', right: '15px', bottom: '25px' },
+  gaugeLabel: { position: 'absolute', width: '100%', bottom: '10px', fontSize: '7px', color: '#444' },
+  needle: { position: 'absolute', bottom: '50%', left: '50%', width: '2px', height: '38px', backgroundColor: '#ff0000', transformOrigin: 'bottom center', transition: 'transform 0.6s ease-out' },
   needleArrow: { position: 'absolute', top: '-6px', left: '-3px', width: '0', height: '0', borderLeft: '4px solid transparent', borderRight: '4px solid transparent', borderBottom: '8px solid #ff0000' },
-  needleHub: { position: 'absolute', top: '50%', left: '50%', width: '10px', height: '10px', backgroundColor: '#222', borderRadius: '50%', transform: 'translate(-50%, -50%)', zIndex: 3, border: '1px solid #666' },
-  gaugeGlass: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 60%)', pointerEvents: 'none' },
-  title: { fontSize: '24px', marginBottom: '20px' },
-  infoBox: { backgroundColor: '#1e293b', padding: '20px', borderRadius: '15px', marginBottom: '20px', textAlign: 'left' },
-  input: { width: '100%', padding: '15px', borderRadius: '10px', marginBottom: '10px', border: 'none', fontSize: '16px', boxSizing: 'border-box', backgroundColor: '#1e293b', color: 'white' },
+  needleHub: { position: 'absolute', top: '50%', left: '50%', width: '8px', height: '8px', backgroundColor: '#222', borderRadius: '50%', transform: 'translate(-50%, -50%)', border: '1px solid #666' },
+  gaugeGlass: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 60%)' },
+  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' },
+  boneButton: { padding: '12px 5px', backgroundColor: '#f8fafc', color: '#000', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' },
   primaryButton: { width: '100%', padding: '15px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' },
-  loginForm: { display: 'flex', flexDirection: 'column' },
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' },
-  boneButton: { padding: '15px', backgroundColor: '#f8fafc', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 'bold' },
-  sliderContainer: { backgroundColor: '#1e293b', padding: '20px', borderRadius: '15px' },
-  yearDisplay: { fontSize: '38px', marginBottom: '10px', color: '#fbbf24', fontWeight: 'bold' },
-  slider: { width: '100%', marginBottom: '15px' },
-  feedbackCard: { padding: '20px', backgroundColor: '#f8fafc', borderRadius: '10px', marginBottom: '20px' },
-  statusRowBottom: { display: 'flex', gap: '10px', marginTop: '20px' },
-  statusBox: { flex: 1, backgroundColor: '#0f172a', padding: '12px', borderRadius: '12px' },
-  leaderboardBox: { backgroundColor: '#0f172a', padding: '15px', borderRadius: '12px', textAlign: 'left', marginBottom: '15px' },
-  leaderboardEntry: { display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #1e293b', padding: '8px 0' },
-  adSlot: { margin: '15px 0', padding: '10px', backgroundColor: '#0f172a', borderRadius: '12px', border: '1px dashed #334155' },
-  adInner: { height: '150px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }
+  infoBox: { backgroundColor: '#1e293b', padding: '15px', borderRadius: '15px', marginBottom: '15px', textAlign: 'left' },
+  input: { width: '100%', padding: '12px', borderRadius: '8px', marginBottom: '10px', border: 'none', backgroundColor: '#0f172a', color: 'white' },
+  statusRowBottom: { display: 'flex', gap: '8px', marginTop: 'auto' },
+  statusBox: { flex: 1, backgroundColor: '#0f172a', padding: '8px', borderRadius: '10px' },
+  title: { fontSize: '20px', marginBottom: '15px' },
+  sliderContainer: { backgroundColor: '#1e293b', padding: '15px', borderRadius: '12px' },
+  yearDisplay: { fontSize: '32px', marginBottom: '8px', color: '#fbbf24', fontWeight: 'bold' },
+  slider: { width: '100%', marginBottom: '10px' },
+  feedbackCard: { padding: '15px', backgroundColor: '#f8fafc', borderRadius: '10px' },
+  leaderboardBox: { backgroundColor: '#0f172a', padding: '10px', borderRadius: '10px', textAlign: 'left', marginBottom: '10px' },
+  leaderboardEntry: { display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #1e293b', padding: '5px 0', fontSize: '14px' },
+  adSlot: { margin: '10px 0', padding: '8px', backgroundColor: '#0f172a', borderRadius: '10px', border: '1px dashed #334155' },
+  adInner: { height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: '12px' }
 };
 
 export default App;
