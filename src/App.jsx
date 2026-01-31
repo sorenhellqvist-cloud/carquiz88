@@ -1,4 +1,4 @@
-// Version: 3.9 - Complete App with Chrome Gauge, Ads Slot & Alias Guard
+// Version: 3.9.1 - Fix: Square images & Chrome Gauge with Arrow Needle
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 
@@ -32,7 +32,6 @@ function App() {
     fetchLeaderboard();
   }, []);
 
-  // Analog Timer-logik för bensinmätaren
   useEffect(() => {
     let interval;
     if (timerActive && timeLeft > 0) {
@@ -49,22 +48,14 @@ function App() {
     if (data) setLeaderboard(data);
   };
 
-  // ALIAS-VAKT: Kontrollerar unika namn mot databasen
   const handleAuthCheck = async () => {
     if (!user || user.trim() === "") {
       alert("Vänligen välj ett alias!");
       return;
     }
-
     const trimmedAlias = user.trim();
-    const { data: existingUser } = await supabase
-      .from('leaderboard')
-      .select('*')
-      .eq('alias', trimmedAlias)
-      .single();
-
+    const { data: existingUser } = await supabase.from('leaderboard').select('*').eq('alias', trimmedAlias).single();
     if (existingUser) {
-      // Om namnet finns krävs rätt e-post för att "logga in"
       if (email && existingUser.email === email) {
         setLevel(existingUser.current_level);
         setScore(existingUser.total_score);
@@ -96,7 +87,6 @@ function App() {
     const currentCar = questions[currentQuestion];
     let points = 0;
     let isMiss = false;
-
     if (level === 1) {
       if (selected === currentCar.make) points = 100;
       else isMiss = true;
@@ -106,7 +96,6 @@ function App() {
       else if (diff <= 2) points = 50; 
       else isMiss = true;
     }
-
     if (isMiss) {
       const newMistakes = mistakes + 1;
       setMistakes(newMistakes);
@@ -123,141 +112,171 @@ function App() {
   const handleNext = async () => {
     setFeedback(null);
     if (currentQuestion + 1 < questions.length) {
-      setCurrentQuestion(prev => prev + 1);
+      setCurrentQuestion(currentQuestion + 1);
     } else {
-      setGameState('level_complete');
       setTimerActive(false);
-      await saveProgress();
+      const bonus = timeLeft * 10;
+      const finalScore = score + bonus;
+      setScore(finalScore);
+      await supabase.from('leaderboard').upsert({ alias: user.trim(), email, current_level: level + 1, total_score: finalScore }, { onConflict: 'alias' });
+      fetchLeaderboard();
+      setGameState('card_ad');
     }
   };
 
-  const saveProgress = async () => {
-    const { data: existing } = await supabase.from('leaderboard').select('*').eq('alias', user.trim()).single();
-    if (existing) {
-      await supabase.from('leaderboard').update({
-        total_score: existing.total_score + score,
-        current_level: level + 1
-      }).eq('alias', user.trim());
-    } else {
-      await supabase.from('leaderboard').insert({
-        alias: user.trim(),
-        email: email || null,
-        total_score: score,
-        current_level: level + 1
-      });
-    }
-    await fetchLeaderboard();
-  };
+  const getNeedleRotation = () => ((timeLeft / MAX_TIME) * 180) - 90;
 
-  useEffect(() => {
-    if (questions.length > 0 && gameState === 'playing' && level === 1 && !feedback) {
-      const currentCar = questions[currentQuestion];
-      const allMakes = [...new Set(allCars.map(q => q.make))];
-      const wrong = allMakes.filter(m => m !== currentCar.make).sort(() => 0.5 - Math.random()).slice(0, 3);
-      setOptions([currentCar.make, ...wrong].sort(() => 0.5 - Math.random()));
-    }
-  }, [currentQuestion, questions, gameState, level, feedback, allCars]);
+  if (isLocked) {
+    return (
+      <div style={styles.appWrapper}>
+        <div style={styles.container}>
+          <h1>TIMEDE.SE 🔒</h1>
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={styles.input} placeholder="Lösenord" />
+          <button onClick={() => password === 'bil88' ? setIsLocked(false) : alert("Fel!")} style={styles.primaryButton}>ÖPPNA</button>
+        </div>
+      </div>
+    );
+  }
 
-  // Bensinmätare med Chrome-design
-  const gaugePercent = (timeLeft / MAX_TIME) * 100;
-  const gaugeColor = gaugePercent > 40 ? '#22c55e' : gaugePercent > 20 ? '#f59e0b' : '#ef4444';
+  if (gameState === 'card_welcome' || gameState === 'card_inputs' || gameState === 'card_level_rules') {
+    return (
+      <div style={styles.appWrapper}>
+        <div style={styles.container}>
+          {gameState === 'card_welcome' && (
+            <>
+              <h2 style={styles.title}>Välkommen! 🏎️</h2>
+              <div style={styles.infoBox}>
+                <p><strong>Varför Alias?</strong> För att tävla på topplistan.</p>
+                <p style={{marginTop: '15px'}}><strong>Varför E-post?</strong> Skyddar ditt namn. (Valfritt)</p>
+              </div>
+              <button onClick={() => setGameState('card_inputs')} style={styles.primaryButton}>NÄSTA</button>
+            </>
+          )}
+          {gameState === 'card_inputs' && (
+            <>
+              <h2 style={styles.title}>Vem kör idag?</h2>
+              <div style={styles.loginForm}>
+                <input placeholder="Ditt unika alias" value={user} onChange={(e) => setUser(e.target.value)} style={styles.input} />
+                <input placeholder="Din E-post (valfritt)" value={email} onChange={(e) => setEmail(e.target.value)} style={styles.input} />
+                <button onClick={handleAuthCheck} style={styles.primaryButton}>GÅ VIDARE</button>
+              </div>
+            </>
+          )}
+          {gameState === 'card_level_rules' && (
+            <>
+              <h2 style={styles.title}>Nivå {level}</h2>
+              <div style={styles.infoBox}>
+                <p><strong>Uppgift:</strong> {level === 1 ? "Välj rätt bilmärke." : "Gissa rätt årtal."}</p>
+                <p style={{marginTop: '15px'}}><strong>Lamporna:</strong> 3 fel = Motorras.</p>
+              </div>
+              <button onClick={startLevel} style={styles.primaryButton}>STARTA SPEL</button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
-  const styles = {
-    app: { fontFamily: 'Arial, sans-serif', background: 'linear-gradient(135deg, #1e293b, #334155)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', boxSizing: 'border-box' },
-    card: { background: '#fff', borderRadius: '16px', boxShadow: '0 10px 40px rgba(0,0,0,0.3)', maxWidth: '600px', width: '100%', padding: '40px', textAlign: 'center' },
-    title: { fontSize: '28px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' },
-    input: { width: '100%', padding: '12px', marginTop: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '16px', boxSizing: 'border-box' },
-    button: { background: '#3b82f6', color: '#fff', padding: '14px 28px', borderRadius: '8px', border: 'none', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', marginTop: '16px' },
-    image: { width: '100%', maxHeight: '300px', objectFit: 'cover', borderRadius: '12px', marginBottom: '20px' },
-    optionButton: { display: 'block', width: '100%', padding: '12px', margin: '8px 0', background: '#e2e8f0', border: 'none', borderRadius: '8px', fontSize: '16px', cursor: 'pointer' },
-    feedbackCorrect: { color: '#22c55e', fontWeight: 'bold', marginTop: '12px' },
-    feedbackWrong: { color: '#ef4444', fontWeight: 'bold', marginTop: '12px' },
-    gauge: { width: '120px', height: '120px', borderRadius: '50%', border: '8px solid #e2e8f0', position: 'relative', margin: '20px auto', background: `conic-gradient(${gaugeColor} ${gaugePercent}%, #e2e8f0 ${gaugePercent}%)` },
-    gaugeInner: { position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '24px', fontWeight: 'bold', color: '#1e293b' },
-    leaderboard: { marginTop: '20px', textAlign: 'left' },
-    leaderboardItem: { display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #e2e8f0' },
-    adSlot: { marginTop: '20px', padding: '16px', background: '#f1f5f9', borderRadius: '8px', border: '1px dashed #cbd5e1', minHeight: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }
-  };
+  if (gameState === 'playing') {
+    const currentCar = questions[currentQuestion];
+    if (!currentCar) return <div style={styles.appWrapper}>Laddar...</div>;
+    return (
+      <div style={styles.appWrapper}>
+        <div style={styles.container}>
+          {/* RUND CHROMAD MÄTARE MED PIL */}
+          <div style={styles.gaugeOuter}>
+            <div style={styles.gaugeInner}>
+              <div style={styles.gaugeScale}><span style={styles.scaleE}>E</span><span style={styles.scaleF}>F</span><div style={styles.gaugeLabel}>FUEL</div></div>
+              <div style={{...styles.needle, transform: `translateX(-50%) rotate(${getNeedleRotation()}deg)`}}>
+                <div style={styles.needleArrow}></div>
+              </div>
+              <div style={styles.needleHub}></div><div style={styles.gaugeGlass}></div>
+            </div>
+          </div>
+          <div style={styles.imageContainer}><img src={currentCar.imageUrl} alt="Car" style={styles.carImage} /></div>
+          {!feedback ? (
+            level === 1 ? (
+              <div style={styles.grid}>{options.map((m, i) => <button key={i} onClick={() => handleAnswer(m)} style={styles.boneButton}>{m}</button>)}</div>
+            ) : (
+              <div style={styles.sliderContainer}>
+                <div style={styles.yearDisplay}>{sliderValue}</div>
+                <input type="range" min="1945" max="1965" step="1" value={sliderValue} onChange={(e) => setSliderValue(e.target.value)} style={styles.slider} />
+                <button onClick={() => handleAnswer()} style={styles.primaryButton}>LÅS ÅR</button>
+              </div>
+            )
+          ) : (
+            <div style={styles.feedbackCard}><p style={{fontWeight: 'bold', color: '#000'}}>{feedback.details}</p><button onClick={handleNext} style={styles.primaryButton}>NÄSTA</button></div>
+          )}
+          <div style={styles.statusRowBottom}>
+            <div style={styles.statusBox}>
+              <div style={{fontSize: '9px', color: '#94a3b8'}}>CHECK ENGINE</div>
+              <div style={{display: 'flex', gap: '5px', justifyContent: 'center', marginTop: '5px'}}>
+                {[1, 2, 3].map(i => <div key={i} style={{width: '12px', height: '12px', borderRadius: '50%', backgroundColor: (mistakes >= i) ? '#f00' : '#1e293b', boxShadow: (mistakes >= i) ? '0 0 8px #f00' : 'none', border: '1px solid #000'}} />)}
+              </div>
+            </div>
+            <div style={styles.statusBox}><div style={{fontSize: '9px', color: '#94a3b8'}}>PROGRESS</div><div style={{fontWeight: 'bold'}}>{currentQuestion + 1} / 25</div></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div style={styles.app}>
-      <div style={styles.card}>
-        {gameState === 'card_welcome' && (
-          <>
-            <h1 style={styles.title}>🚗 CarQuiz88</h1>
-            <p>Testa dina bilkunskaper genom tiderna!</p>
-            <input style={styles.input} type="text" placeholder="Välj ett alias" value={user} onChange={(e) => setUser(e.target.value)} />
-            <input style={styles.input} type="email" placeholder="E-post (valfritt, för att återuppta)" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <button style={styles.button} onClick={handleAuthCheck}>Fortsätt</button>
-            <div style={styles.leaderboard}>
-              <h3>🏆 Topplista</h3>
-              {leaderboard.map((entry, i) => (
-                <div key={i} style={styles.leaderboardItem}>
-                  <span>{i + 1}. {entry.alias}</span>
-                  <span>{entry.total_score} p</span>
-                </div>
-              ))}
-            </div>
-            <div style={styles.adSlot}><span style={{fontSize: '10px', color: '#475569'}}>ANNONS</span></div>
-          </>
-        )}
-
-        {gameState === 'card_level_rules' && (
-          <>
-            <h2 style={styles.title}>Level {level}</h2>
-            <p>{level === 1 ? "Gissa bilmärket!" : "Gissa årsmodellen!"}</p>
-            <p>Du har {MAX_TIME} sekunder och 3 liv.</p>
-            <button style={styles.button} onClick={startLevel}>Starta</button>
-          </>
-        )}
-
-        {gameState === 'playing' && questions.length > 0 && (
-          <>
-            <div style={styles.gauge}>
-              <div style={styles.gaugeInner}>{timeLeft}s</div>
-            </div>
-            <p>Fråga {currentQuestion + 1}/{questions.length} | Poäng: {score} | Liv: {3 - mistakes}</p>
-            <img style={styles.image} src={questions[currentQuestion].imageUrl} alt="car" />
-            {level === 1 && !feedback && options.map((opt, i) => (
-              <button key={i} style={styles.optionButton} onClick={() => handleAnswer(opt)}>{opt}</button>
-            ))}
-            {level === 2 && !feedback && (
-              <>
-                <input type="range" min="1920" max="2024" value={sliderValue} onChange={(e) => setSliderValue(e.target.value)} style={{width: '100%'}} />
-                <p>År: {sliderValue}</p>
-                <button style={styles.button} onClick={() => handleAnswer(sliderValue)}>Svara</button>
-              </>
-            )}
-            {feedback && (
-              <>
-                <p style={feedback.isCorrect ? styles.feedbackCorrect : styles.feedbackWrong}>
-                  {feedback.isCorrect ? '✅ Rätt!' : '❌ Fel!'}
-                </p>
-                <p>{feedback.details}</p>
-                <button style={styles.button} onClick={handleNext}>Nästa</button>
-              </>
-            )}
-          </>
-        )}
-
-        {gameState === 'level_complete' && (
-          <>
-            <h2 style={styles.title}>🎉 Level {level} klar!</h2>
-            <p>Din poäng: {score}</p>
-            <button style={styles.button} onClick={() => { setLevel(level + 1); setScore(0); setGameState('card_level_rules'); }}>Nästa level</button>
-          </>
-        )}
-
+    <div style={styles.appWrapper}>
+      <div style={styles.container}>
         {gameState === 'failed' && (
+          <><h1 style={{color: '#ef4444'}}>MOTORRAS!</h1><button onClick={() => window.location.reload()} style={styles.primaryButton}>FÖRSÖK IGEN</button></>
+        )}
+        {gameState === 'card_ad' && (
           <>
-            <h2 style={styles.title}>😢 Game Over</h2>
-            <p>Poäng: {score}</p>
-            <button style={styles.button} onClick={() => { setGameState('card_welcome'); setScore(0); setLevel(1); setUser(""); setEmail(""); }}>Tillbaka</button>
+            <h2 style={{color: '#22c55e'}}>KLARAD!</h2>
+            <div style={styles.leaderboardBox}>
+              <h4 style={{textAlign: 'center', color: '#fbbf24', margin: '0 0 10px 0'}}>TOPPLISTA 🏆</h4>
+              {leaderboard.map((entry, i) => <div key={i} style={styles.leaderboardEntry}><span>{i+1}. {entry.alias}</span><span>{entry.total_score}p</span></div>)}
+            </div>
+            <div style={styles.adSlot}><span style={{fontSize: '10px', color: '#475569'}}>ANNONS</span><div style={styles.adInner}>Google Ads</div></div>
+            <button onClick={() => { setLevel(level + 1); setGameState('card_level_rules'); }} style={styles.primaryButton}>NÄSTA NIVÅ</button>
           </>
         )}
       </div>
     </div>
   );
 }
+
+const styles = {
+  appWrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#020617', color: '#f8fafc', padding: '20px', fontFamily: 'sans-serif' },
+  container: { width: '100%', maxWidth: '400px', textAlign: 'center' },
+  // FYRKANTIG BILD
+  imageContainer: { width: '100%', aspectRatio: '1/1', marginBottom: '20px', borderRadius: '8px', overflow: 'hidden', border: '2px solid #1e293b' },
+  carImage: { width: '100%', height: '100%', objectFit: 'cover' },
+  // CHROMAD MÄTARE
+  gaugeOuter: { width: '110px', height: '110px', margin: '0 auto 15px', borderRadius: '50%', background: 'linear-gradient(145deg, #ffffff, #888888, #444444)', padding: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.7)', border: '2px solid #ccc' },
+  gaugeInner: { width: '100%', height: '100%', backgroundColor: '#050505', borderRadius: '50%', position: 'relative', overflow: 'hidden', border: '1px solid #000' },
+  gaugeScale: { position: 'absolute', width: '100%', height: '100%', color: '#fff', fontSize: '12px', fontWeight: 'bold' },
+  scaleE: { position: 'absolute', left: '18px', bottom: '28px', color: '#ff4444' },
+  scaleF: { position: 'absolute', right: '18px', bottom: '28px' },
+  gaugeLabel: { position: 'absolute', width: '100%', bottom: '12px', fontSize: '8px', letterSpacing: '1px', color: '#444' },
+  needle: { position: 'absolute', bottom: '50%', left: '50%', width: '2px', height: '42px', backgroundColor: '#ff0000', transformOrigin: 'bottom center', transition: 'transform 0.6s ease-out', zIndex: 2 },
+  needleArrow: { position: 'absolute', top: '-6px', left: '-3px', width: '0', height: '0', borderLeft: '4px solid transparent', borderRight: '4px solid transparent', borderBottom: '8px solid #ff0000' },
+  needleHub: { position: 'absolute', top: '50%', left: '50%', width: '10px', height: '10px', backgroundColor: '#222', borderRadius: '50%', transform: 'translate(-50%, -50%)', zIndex: 3, border: '1px solid #666' },
+  gaugeGlass: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 60%)', pointerEvents: 'none' },
+  title: { fontSize: '24px', marginBottom: '20px' },
+  infoBox: { backgroundColor: '#1e293b', padding: '20px', borderRadius: '15px', marginBottom: '20px', textAlign: 'left' },
+  input: { width: '100%', padding: '15px', borderRadius: '10px', marginBottom: '10px', border: 'none', fontSize: '16px', boxSizing: 'border-box', backgroundColor: '#1e293b', color: 'white' },
+  primaryButton: { width: '100%', padding: '15px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' },
+  loginForm: { display: 'flex', flexDirection: 'column' },
+  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' },
+  boneButton: { padding: '15px', backgroundColor: '#f8fafc', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 'bold' },
+  sliderContainer: { backgroundColor: '#1e293b', padding: '20px', borderRadius: '15px' },
+  yearDisplay: { fontSize: '38px', marginBottom: '10px', color: '#fbbf24', fontWeight: 'bold' },
+  slider: { width: '100%', marginBottom: '15px' },
+  feedbackCard: { padding: '20px', backgroundColor: '#f8fafc', borderRadius: '10px', marginBottom: '20px' },
+  statusRowBottom: { display: 'flex', gap: '10px', marginTop: '20px' },
+  statusBox: { flex: 1, backgroundColor: '#0f172a', padding: '12px', borderRadius: '12px' },
+  leaderboardBox: { backgroundColor: '#0f172a', padding: '15px', borderRadius: '12px', textAlign: 'left', marginBottom: '15px' },
+  leaderboardEntry: { display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #1e293b', padding: '8px 0' },
+  adSlot: { margin: '15px 0', padding: '10px', backgroundColor: '#0f172a', borderRadius: '12px', border: '1px dashed #334155' },
+  adInner: { height: '150px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }
+};
 
 export default App;
