@@ -1,4 +1,4 @@
-// Version: 3.5 (KOMPLETT) - Fix: Start-knapp aktiverar spelplanen
+// Version: 3.9 - Unique Alias Guard + Chrome Gauge + Ad Slot
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 
@@ -21,6 +21,8 @@ function App() {
   const [timerActive, setTimerActive] = useState(false);
   const [leaderboard, setLeaderboard] = useState([]);
 
+  const MAX_TIME = level === 1 ? 250 : 200;
+
   useEffect(() => {
     async function fetchAllCars() {
       const { data, error } = await supabase.from('cars').select('*');
@@ -30,22 +32,50 @@ function App() {
     fetchLeaderboard();
   }, []);
 
+  useEffect(() => {
+    let interval;
+    if (timerActive && timeLeft > 0) {
+      interval = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
+    } else if (timeLeft === 0 && gameState === 'playing') {
+      setGameState('failed');
+      setTimerActive(false);
+    }
+    return () => clearInterval(interval);
+  }, [timerActive, timeLeft, gameState]);
+
   const fetchLeaderboard = async () => {
     const { data } = await supabase.from('leaderboard').select('alias, total_score').order('total_score', { ascending: false }).limit(5);
     if (data) setLeaderboard(data);
   };
 
+  // NY LOGIK: Kontrollera unika alias
   const handleAuthCheck = async () => {
     if (!user || user.trim() === "") {
       alert("Vänligen välj ett alias!");
       return;
     }
-    const { data } = await supabase.from('leaderboard').select('*').eq('alias', user.trim()).single();
-    if (data) {
-      setLevel(data.current_level);
-      setScore(data.total_score);
+
+    const trimmedAlias = user.trim();
+    const { data: existingUser } = await supabase
+      .from('leaderboard')
+      .select('*')
+      .eq('alias', trimmedAlias)
+      .single();
+
+    if (existingUser) {
+      // Om aliaset finns, kolla om e-posten matchar (inloggning)
+      if (email && existingUser.email === email) {
+        setLevel(existingUser.current_level);
+        setScore(existingUser.total_score);
+        setGameState('card_level_rules');
+      } else {
+        // Annars stoppa för att undvika dubbletter i leaderboard
+        alert("Detta alias används redan. Välj ett annat namn eller ange rätt e-post för att fortsätta.");
+        return;
+      }
+    } else {
+      setGameState('card_level_rules');
     }
-    setGameState('card_level_rules');
   };
 
   const startLevel = () => {
@@ -56,18 +86,10 @@ function App() {
     setCurrentQuestion(0);
     setMistakes(0);
     setFeedback(null);
+    setTimeLeft(MAX_TIME);
     setTimerActive(true);
-    setGameState('playing'); // Aktiverar spelsidan
+    setGameState('playing');
   };
-
-  useEffect(() => {
-    if (questions.length > 0 && gameState === 'playing' && level === 1 && !feedback) {
-      const currentCar = questions[currentQuestion];
-      const allMakes = [...new Set(allCars.map(q => q.make))];
-      const wrong = allMakes.filter(m => m !== currentCar.make).sort(() => 0.5 - Math.random()).slice(0, 3);
-      setOptions([currentCar.make, ...wrong].sort(() => 0.5 - Math.random()));
-    }
-  }, [currentQuestion, questions, gameState, level, feedback, allCars]);
 
   const handleAnswer = (selected) => {
     if (feedback) return;
@@ -104,13 +126,21 @@ function App() {
       setCurrentQuestion(currentQuestion + 1);
     } else {
       setTimerActive(false);
-      const finalScore = score + (timeLeft * 10);
+      const bonus = timeLeft * 10;
+      const finalScore = score + bonus;
       setScore(finalScore);
-      await supabase.from('leaderboard').upsert({ alias: user, email, current_level: level + 1, total_score: finalScore }, { onConflict: 'alias' });
+      await supabase.from('leaderboard').upsert({ 
+        alias: user.trim(), 
+        email, 
+        current_level: level + 1, 
+        total_score: finalScore 
+      }, { onConflict: 'alias' });
       fetchLeaderboard();
       setGameState('card_ad');
     }
   };
+
+  const getNeedleRotation = () => ( (timeLeft / MAX_TIME) * 180 ) - 90;
 
   // --- RENDERING ---
 
@@ -118,7 +148,7 @@ function App() {
     return (
       <div style={styles.appWrapper}>
         <div style={styles.container}>
-          <h1>LÅST 🔒</h1>
+          <h1>TIMEDE.SE 🔒</h1>
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={styles.input} placeholder="Lösenord" />
           <button onClick={() => password === 'bil88' ? setIsLocked(false) : alert("Fel!")} style={styles.primaryButton}>ÖPPNA</button>
         </div>
@@ -126,46 +156,40 @@ function App() {
     );
   }
 
-  if (gameState === 'card_welcome') {
+  if (gameState === 'card_welcome' || gameState === 'card_inputs' || gameState === 'card_level_rules') {
     return (
       <div style={styles.appWrapper}>
         <div style={styles.container}>
-          <h2 style={styles.title}>Välkommen! 🏎️</h2>
-          <div style={styles.infoBox}>
-            <p><strong>Varför Alias?</strong> För att spara dina poäng på topplistan.</p>
-            <p style={{marginTop: '15px'}}><strong>Varför E-post?</strong> Så att vi kan nå dig om du vinner ett veckopris. (Valfritt)</p>
-          </div>
-          <button onClick={() => setGameState('card_inputs')} style={styles.primaryButton}>NÄSTA</button>
-        </div>
-      </div>
-    );
-  }
-
-  if (gameState === 'card_inputs') {
-    return (
-      <div style={styles.appWrapper}>
-        <div style={styles.container}>
-          <h2 style={styles.title}>Vem kör idag?</h2>
-          <div style={styles.loginForm}>
-            <input placeholder="Ditt Alias" value={user} onChange={(e) => setUser(e.target.value)} style={styles.input} />
-            <input placeholder="Din E-post (valfritt)" value={email} onChange={(e) => setEmail(e.target.value)} style={styles.input} />
-            <button onClick={handleAuthCheck} style={styles.primaryButton}>GÅ VIDARE</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (gameState === 'card_level_rules') {
-    return (
-      <div style={styles.appWrapper}>
-        <div style={styles.container}>
-          <h2 style={styles.title}>Regler för Nivå {level}</h2>
-          <div style={styles.infoBox}>
-            <p><strong>Uppgift:</strong> {level === 1 ? "Välj rätt bilmärke bland alternativen." : "Gissa rätt år med slidern."}</p>
-            <p style={{marginTop: '15px'}}><strong>Lamporna:</strong> Vid varje fel svar tänds en lampa. Vid 3 fel får du börja om nivån!</p>
-          </div>
-          <button onClick={startLevel} style={styles.primaryButton}>STARTA SPEL</button>
+          {gameState === 'card_welcome' && (
+            <>
+              <h2 style={styles.title}>Välkommen! 🏎️</h2>
+              <div style={styles.infoBox}>
+                <p><strong>Alias:</strong> Krävs för att du ska synas på topplistan.</p>
+                <p style={{marginTop: '15px'}}><strong>E-post:</strong> Valfritt, men behövs om du vill fortsätta spela på ditt alias senare.</p>
+              </div>
+              <button onClick={() => setGameState('card_inputs')} style={styles.primaryButton}>NÄSTA</button>
+            </>
+          )}
+          {gameState === 'card_inputs' && (
+            <>
+              <h2 style={styles.title}>Vem kör idag?</h2>
+              <div style={styles.loginForm}>
+                <input placeholder="Välj ett unikt alias" value={user} onChange={(e) => setUser(e.target.value)} style={styles.input} />
+                <input placeholder="Din E-post (valfritt)" value={email} onChange={(e) => setEmail(e.target.value)} style={styles.input} />
+                <button onClick={handleAuthCheck} style={styles.primaryButton}>KONTROLLERA NAMN</button>
+              </div>
+            </>
+          )}
+          {gameState === 'card_level_rules' && (
+            <>
+              <h2 style={styles.title}>Nivå {level}</h2>
+              <div style={styles.infoBox}>
+                <p><strong>Mål:</strong> {level === 1 ? "Välj rätt bilmärke." : "Gissa rätt år."}</p>
+                <p style={{marginTop: '15px'}}><strong>Motorras:</strong> Vid 3 fel får du börja om nivån.</p>
+              </div>
+              <button onClick={startLevel} style={styles.primaryButton}>STARTA SPEL</button>
+            </>
+          )}
         </div>
       </div>
     );
@@ -173,20 +197,21 @@ function App() {
 
   if (gameState === 'playing') {
     const currentCar = questions[currentQuestion];
-    if (!currentCar) return <div style={styles.appWrapper}>Tanker upp...</div>;
-
+    if (!currentCar) return <div style={styles.appWrapper}>Laddar...</div>;
     return (
       <div style={styles.appWrapper}>
         <div style={styles.container}>
-          <div style={styles.imageContainer}>
-            <img key={currentCar.file_name} src={currentCar.imageUrl} alt="Car" style={styles.carImage} />
+          <div style={styles.gaugeOuter}>
+            <div style={styles.gaugeInner}>
+              <div style={styles.gaugeScale}><span style={styles.scaleE}>E</span><span style={styles.scaleF}>F</span><div style={styles.gaugeLabel}>FUEL</div></div>
+              <div style={{...styles.needle, transform: `translateX(-50%) rotate(${getNeedleRotation()}deg)`}}></div>
+              <div style={styles.needleHub}></div><div style={styles.gaugeGlass}></div>
+            </div>
           </div>
-
+          <div style={styles.imageContainer}><img src={currentCar.imageUrl} alt="Car" style={styles.carImage} /></div>
           {!feedback ? (
             level === 1 ? (
-              <div style={styles.grid}>
-                {options.map((m, i) => <button key={i} onClick={() => handleAnswer(m)} style={styles.boneButton}>{m}</button>)}
-              </div>
+              <div style={styles.grid}>{options.map((m, i) => <button key={i} onClick={() => handleAnswer(m)} style={styles.boneButton}>{m}</button>)}</div>
             ) : (
               <div style={styles.sliderContainer}>
                 <div style={styles.yearDisplay}>{sliderValue}</div>
@@ -195,70 +220,33 @@ function App() {
               </div>
             )
           ) : (
-            <div style={styles.feedbackCard}>
-              <p style={{fontWeight: 'bold', color: '#000'}}>{feedback.details}</p>
-              <button onClick={handleNext} style={styles.primaryButton}>NÄSTA BILD</button>
-            </div>
+            <div style={styles.feedbackCard}><p style={{fontWeight: 'bold', color: '#000'}}>{feedback.details}</p><button onClick={handleNext} style={styles.primaryButton}>NÄSTA</button></div>
           )}
-
           <div style={styles.statusRowBottom}>
             <div style={styles.statusBox}>
-              <div style={{fontSize: '9px'}}>CHECK ENGINE</div>
+              <div style={{fontSize: '9px', color: '#94a3b8'}}>CHECK ENGINE</div>
               <div style={{display: 'flex', gap: '5px', justifyContent: 'center', marginTop: '5px'}}>
-                <div style={{width: '10px', height: '10px', borderRadius: '50%', backgroundColor: (mistakes >= 1) ? '#f00' : '#334155'}} />
-                <div style={{width: '10px', height: '10px', borderRadius: '50%', backgroundColor: (mistakes >= 2) ? '#f00' : '#334155'}} />
-                <div style={{width: '10px', height: '10px', borderRadius: '50%', backgroundColor: (mistakes >= 3) ? '#f00' : '#334155'}} />
+                {[1, 2, 3].map(i => <div key={i} style={{width: '12px', height: '12px', borderRadius: '50%', backgroundColor: (mistakes >= i) ? '#f00' : '#1e293b', boxShadow: (mistakes >= i) ? '0 0 8px #f00' : 'none', border: '1px solid #000'}} />)}
               </div>
             </div>
-            <div style={styles.statusBox}>
-              <div style={{fontSize: '9px'}}>PROGRESS</div>
-              <div style={{fontWeight: 'bold'}}>{currentQuestion + 1} / 25</div>
-            </div>
+            <div style={styles.statusBox}><div style={{fontSize: '9px', color: '#94a3b8'}}>PROGRESS</div><div style={{fontWeight: 'bold'}}>{currentQuestion + 1} / 25</div></div>
           </div>
         </div>
       </div>
     );
   }
 
-  // Fallback för andra states (failed, card_ad)
   return (
     <div style={styles.appWrapper}>
       <div style={styles.container}>
         {gameState === 'failed' && (
-          <>
-            <h1 style={{color: '#ef4444'}}>MOTORRAS!</h1>
-            <button onClick={() => window.location.reload()} style={styles.primaryButton}>FÖRSÖK IGEN</button>
-          </>
+          <><h1 style={{color: '#ef4444'}}>MOTORRAS!</h1><button onClick={() => window.location.reload()} style={styles.primaryButton}>FÖRSÖK IGEN</button></>
         )}
         {gameState === 'card_ad' && (
           <>
             <h2 style={{color: '#22c55e'}}>KLARAD!</h2>
-            <button onClick={() => { setLevel(level + 1); setGameState('card_level_rules'); }} style={styles.primaryButton}>NÄSTA NIVÅ</button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-const styles = {
-  appWrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#020617', color: '#f8fafc', padding: '20px', fontFamily: 'sans-serif' },
-  container: { width: '100%', maxWidth: '400px', textAlign: 'center' },
-  title: { fontSize: '24px', marginBottom: '20px' },
-  infoBox: { backgroundColor: '#1e293b', padding: '20px', borderRadius: '15px', marginBottom: '20px', textAlign: 'left' },
-  input: { width: '100%', padding: '15px', borderRadius: '10px', marginBottom: '10px', border: 'none', fontSize: '16px', boxSizing: 'border-box' },
-  primaryButton: { width: '100%', padding: '15px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' },
-  loginForm: { display: 'flex', flexDirection: 'column' },
-  imageContainer: { width: '100%', aspectRatio: '4/3', marginBottom: '20px', borderRadius: '10px', overflow: 'hidden', border: '2px solid #1e293b' },
-  carImage: { width: '100%', height: '100%', objectFit: 'cover' },
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' },
-  boneButton: { padding: '15px', backgroundColor: '#f8fafc', color: '#000', border: 'none', borderRadius: '10px', fontWeight: 'bold' },
-  sliderContainer: { backgroundColor: '#1e293b', padding: '20px', borderRadius: '10px' },
-  yearDisplay: { fontSize: '36px', marginBottom: '10px', color: '#fbbf24', fontWeight: 'bold' },
-  slider: { width: '100%', marginBottom: '15px' },
-  feedbackCard: { padding: '20px', backgroundColor: '#f8fafc', borderRadius: '10px', marginBottom: '20px' },
-  statusRowBottom: { display: 'flex', gap: '10px', marginTop: '20px' },
-  statusBox: { flex: 1, backgroundColor: '#0f172a', padding: '10px', borderRadius: '10px' }
-};
-
-export default App;
+            <div style={styles.leaderboardBox}>
+              <h4 style={{textAlign: 'center', color: '#fbbf24', margin: '0 0 10px 0'}}>TOPPLISTA 🏆</h4>
+              {leaderboard.map((entry, i) => <div key={i} style={styles.leaderboardEntry}><span>{i+1}. {entry.alias}</span><span>{entry.total_score}p</span></div>)}
+            </div>
+            <div style={styles.adSlot}><span style={{fontSize: '10px', color: '#475569'}}>ANNONS</span><div style={styles
