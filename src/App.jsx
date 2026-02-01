@@ -1,4 +1,4 @@
-// Version: 4.1 - 800x600 Aspect Ratio (4:3) + Chrome Gauge & Arrow Needle
+// Version: 4.2 - Holy Checklist + Model in Answer + Error Flash Image
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 
@@ -20,15 +20,24 @@ function App() {
   const [timeLeft, setTimeLeft] = useState(250); 
   const [timerActive, setTimerActive] = useState(false);
   const [leaderboard, setLeaderboard] = useState([]);
+  
+  // NYTT: State för fel-bilden
+  const [errorImageUrl, setErrorImageUrl] = useState(null);
+  const [showErrorFlash, setShowErrorFlash] = useState(false);
 
   const MAX_TIME = level === 1 ? 250 : 200;
 
   useEffect(() => {
-    async function fetchAllCars() {
-      const { data, error } = await supabase.from('cars').select('*');
-      if (!error && data) setAllCars(data);
+    async function fetchData() {
+      // Hämta bilar
+      const { data: carsData } = await supabase.from('cars').select('*');
+      if (carsData) setAllCars(carsData);
+      
+      // Hämta URL för Fel.png (Antar att den ligger i samma bucket 'Cars88')
+      const { data: errorImgData } = supabase.storage.from('Cars88').getPublicUrl('Fel.png');
+      if (errorImgData) setErrorImageUrl(errorImgData.publicUrl);
     }
-    fetchAllCars();
+    fetchData();
     fetchLeaderboard();
   }, []);
 
@@ -92,10 +101,11 @@ function App() {
   };
 
   const handleAnswer = (selected) => {
-    if (feedback) return;
+    if (feedback || showErrorFlash) return; // Lås knappar om felbild visas
     const currentCar = questions[currentQuestion];
     let points = 0;
     let isMiss = false;
+
     if (level === 1) {
       if (selected === currentCar.make) points = 100;
       else isMiss = true;
@@ -105,17 +115,32 @@ function App() {
       else if (diff <= 2) points = 50; 
       else isMiss = true;
     }
+
+    // Konstruera svaret med ÅR, MÄRKE och MODELL [Checklista Punkt 4]
+    const answerText = `Det var en ${currentCar.year} ${currentCar.make} ${currentCar.model || ''}`;
+
     if (isMiss) {
       const newMistakes = mistakes + 1;
       setMistakes(newMistakes);
-      if (newMistakes >= 3) {
-        setGameState('failed');
-        setTimerActive(false);
-        return;
-      }
+      
+      // VISA FEL-BILDEN! [Checklista Punkt 5]
+      setShowErrorFlash(true);
+      setTimeout(() => {
+        setShowErrorFlash(false);
+        if (newMistakes >= 3) {
+            setGameState('failed');
+            setTimerActive(false);
+        } else {
+            // Visa feedback-kortet efter att bilden blixtrat klart
+            setFeedback({ isCorrect: false, details: answerText });
+        }
+      }, 2000); // 2 sekunder
+
+    } else {
+      // Rätt svar
+      setScore(prev => prev + points);
+      setFeedback({ isCorrect: true, details: answerText });
     }
-    setScore(prev => prev + points);
-    setFeedback({ isCorrect: !isMiss, details: `Det var en ${currentCar.year} ${currentCar.make}.` });
   };
 
   const handleNext = async () => {
@@ -174,6 +199,14 @@ function App() {
       <div style={styles.appWrapper}>
         <div style={styles.container}>
           
+          {/* FEL-BILD OVERLAY (Visas om showErrorFlash är true) */}
+          {showErrorFlash && errorImageUrl && (
+            <div style={styles.errorOverlay}>
+              <img src={errorImageUrl} alt="FEL!" style={{width: '80%', maxWidth: '300px', borderRadius: '15px', border: '5px solid #ef4444', boxShadow: '0 0 50px rgba(239,68,68,0.8)'}} />
+            </div>
+          )}
+
+          {/* MÄTAREN - CHECKLISTA: KROM & PIL */}
           <div style={styles.gaugeOuter}>
             <div style={styles.gaugeInner}>
               <div style={styles.gaugeScale}><span style={styles.scaleE}>E</span><span style={styles.scaleF}>F</span><div style={styles.gaugeLabel}>FUEL</div></div>
@@ -184,11 +217,12 @@ function App() {
             </div>
           </div>
 
-          {/* BILD - HÄR ÄR ÄNDRINGEN (4/3 format = 800x600) */}
+          {/* BILD - CHECKLISTA: 4:3 (800x600) */}
           <div style={styles.imageContainer}><img src={currentCar.imageUrl} alt="Car" style={styles.carImage} /></div>
           
+          {/* KNAPPAR - CHECKLISTA: UNDER BILDEN */}
           <div style={styles.interactionArea}>
-            {!feedback ? (
+            {!feedback && !showErrorFlash ? (
               level === 1 ? (
                 <div style={styles.grid}>{options.map((m, i) => <button key={i} onClick={() => handleAnswer(m)} style={styles.boneButton}>{m}</button>)}</div>
               ) : (
@@ -198,7 +232,10 @@ function App() {
                   <button onClick={() => handleAnswer()} style={styles.primaryButton}>LÅS ÅR</button>
                 </div>
               )
-            ) : (
+            ) : null}
+            
+            {/* Feedback visas först när fel-bilden är borta (eller direkt vid rätt svar) */}
+            {feedback && !showErrorFlash && (
               <div style={styles.feedbackCard}><p style={{fontWeight: 'bold', color: '#000'}}>{feedback.details}</p><button onClick={handleNext} style={styles.primaryButton}>NÄSTA</button></div>
             )}
           </div>
@@ -230,9 +267,12 @@ function App() {
 }
 
 const styles = {
-  appWrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#020617', color: '#f8fafc', padding: '10px', fontFamily: 'sans-serif' },
+  appWrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#020617', color: '#f8fafc', padding: '10px', fontFamily: 'sans-serif', position: 'relative' },
   container: { width: '100%', maxWidth: '380px', textAlign: 'center', display: 'flex', flexDirection: 'column' },
   
+  // ERROR OVERLAY
+  errorOverlay: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 },
+
   // 1. BILD (800x600 = 4/3 Aspect Ratio)
   imageContainer: { width: '100%', aspectRatio: '4/3', marginBottom: '15px', borderRadius: '8px', overflow: 'hidden', border: '2px solid #1e293b', flexShrink: 0 },
   carImage: { width: '100%', height: '100%', objectFit: 'cover' },
