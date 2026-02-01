@@ -1,4 +1,4 @@
-// Version: 3.9.2 - Fix: Restore Answer Buttons & Layout Alignment
+// Version: 4.1 - 800x600 Aspect Ratio (4:3) + Chrome Gauge & Arrow Needle
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 
@@ -53,7 +53,7 @@ function App() {
   }, [currentQuestion, questions, gameState, level, feedback, allCars]);
 
   const fetchLeaderboard = async () => {
-    const { data } = await supabase.from('leaderboard').select('alias, total_score').order('total_score', { ascending: false }).limit(5);
+    const { data } = await supabase.from('leaderboard').select('alias, total_score').order('total_score', { ascending: false }).limit(10);
     if (data) setLeaderboard(data);
   };
 
@@ -70,7 +70,7 @@ function App() {
         setScore(existingUser.total_score);
         setGameState('card_level_rules');
       } else {
-        alert("Detta alias används redan. Välj ett annat namn eller ange rätt e-post.");
+        alert("Upptaget namn! Ange rätt e-post för att logga in, eller byt alias.");
         return;
       }
     } else {
@@ -135,6 +135,8 @@ function App() {
 
   const getNeedleRotation = () => ((timeLeft / MAX_TIME) * 180) - 90;
 
+  // --- RENDERING ---
+
   if (isLocked) {
     return (
       <div style={styles.appWrapper}>
@@ -171,13 +173,18 @@ function App() {
     return (
       <div style={styles.appWrapper}>
         <div style={styles.container}>
+          
           <div style={styles.gaugeOuter}>
             <div style={styles.gaugeInner}>
               <div style={styles.gaugeScale}><span style={styles.scaleE}>E</span><span style={styles.scaleF}>F</span><div style={styles.gaugeLabel}>FUEL</div></div>
-              <div style={{...styles.needle, transform: `translateX(-50%) rotate(${getNeedleRotation()}deg)`}}><div style={styles.needleArrow}></div></div>
+              <div style={{...styles.needle, transform: `translateX(-50%) rotate(${getNeedleRotation()}deg)`}}>
+                <div style={styles.needleArrow}></div>
+              </div>
               <div style={styles.needleHub}></div><div style={styles.gaugeGlass}></div>
             </div>
           </div>
+
+          {/* BILD - HÄR ÄR ÄNDRINGEN (4/3 format = 800x600) */}
           <div style={styles.imageContainer}><img src={currentCar.imageUrl} alt="Car" style={styles.carImage} /></div>
           
           <div style={styles.interactionArea}>
@@ -215,7 +222,7 @@ function App() {
       <div style={styles.container}>
         {gameState === 'failed' && <><h1 style={{color: '#ef4444'}}>MOTORRAS!</h1><button onClick={() => window.location.reload()} style={styles.primaryButton}>FÖRSÖK IGEN</button></>}
         {gameState === 'card_ad' && (
-          <><h2 style={{color: '#22c55e'}}>KLARAD!</h2><div style={styles.leaderboardBox}><h4 style={{textAlign: 'center', color: '#fbbf24', margin: '0 0 10px 0'}}>TOPPLISTA 🏆</h4>{leaderboard.map((entry, i) => <div key={i} style={styles.leaderboardEntry}><span>{i+1}. {entry.alias}</span><span>{entry.total_score}p</span></div>)}</div><div style={styles.adSlot}><span style={{fontSize: '10px', color: '#475569'}}>ANNONS</span><div style={styles.adInner}>Google Ads</div></div><button onClick={() => { setLevel(level + 1); setGameState('card_level_rules'); }} style={styles.primaryButton}>NÄSTA NIVÅ</button></>
+          <><h2 style={{color: '#22c55e'}}>KLARAD!</h2><div style={styles.leaderboardBox}><h4 style={{textAlign: 'center', color: '#fbbf24', margin: '0 0 10px 0'}}>TOPPLISTA (Topp 10)</h4>{leaderboard.map((entry, i) => <div key={i} style={styles.leaderboardEntry}><span>{i+1}. {entry.alias}</span><span>{entry.total_score}p</span></div>)}</div><div style={styles.adSlot}><span style={{fontSize: '10px', color: '#475569'}}>ANNONS</span><div style={styles.adInner}>Google Ads</div></div><button onClick={() => { setLevel(level + 1); setGameState('card_level_rules'); }} style={styles.primaryButton}>NÄSTA NIVÅ</button></>
         )}
       </div>
     </div>
@@ -225,19 +232,25 @@ function App() {
 const styles = {
   appWrapper: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#020617', color: '#f8fafc', padding: '10px', fontFamily: 'sans-serif' },
   container: { width: '100%', maxWidth: '380px', textAlign: 'center', display: 'flex', flexDirection: 'column' },
-  imageContainer: { width: '100%', aspectRatio: '1/1', marginBottom: '15px', borderRadius: '8px', overflow: 'hidden', border: '2px solid #1e293b', flexShrink: 0 },
+  
+  // 1. BILD (800x600 = 4/3 Aspect Ratio)
+  imageContainer: { width: '100%', aspectRatio: '4/3', marginBottom: '15px', borderRadius: '8px', overflow: 'hidden', border: '2px solid #1e293b', flexShrink: 0 },
   carImage: { width: '100%', height: '100%', objectFit: 'cover' },
-  interactionArea: { minHeight: '140px', marginBottom: '10px' },
-  gaugeOuter: { width: '100px', height: '100px', margin: '0 auto 10px', borderRadius: '50%', background: 'linear-gradient(145deg, #ffffff, #888888, #444444)', padding: '5px', boxShadow: '0 4px 10px rgba(0,0,0,0.7)', border: '2px solid #ccc', flexShrink: 0 },
-  gaugeInner: { width: '100%', height: '100%', backgroundColor: '#050505', borderRadius: '50%', position: 'relative', overflow: 'hidden', border: '1px solid #000' },
+  
+  // 2. MÄTAREN (CHROME & ARROW)
+  gaugeOuter: { width: '100px', height: '100px', margin: '0 auto 10px', borderRadius: '50%', background: 'linear-gradient(145deg, #ffffff, #999999, #555555)', padding: '5px', boxShadow: '0 4px 10px rgba(0,0,0,0.7)', border: '2px solid #888', flexShrink: 0 },
+  gaugeInner: { width: '100%', height: '100%', backgroundColor: '#111', borderRadius: '50%', position: 'relative', overflow: 'hidden', border: '1px solid #000' },
   gaugeScale: { position: 'absolute', width: '100%', height: '100%', color: '#fff', fontSize: '11px', fontWeight: 'bold' },
   scaleE: { position: 'absolute', left: '15px', bottom: '25px', color: '#ff4444' },
   scaleF: { position: 'absolute', right: '15px', bottom: '25px' },
-  gaugeLabel: { position: 'absolute', width: '100%', bottom: '10px', fontSize: '7px', color: '#444' },
-  needle: { position: 'absolute', bottom: '50%', left: '50%', width: '2px', height: '38px', backgroundColor: '#ff0000', transformOrigin: 'bottom center', transition: 'transform 0.6s ease-out' },
+  gaugeLabel: { position: 'absolute', width: '100%', bottom: '10px', fontSize: '7px', color: '#666' },
+  
+  needle: { position: 'absolute', bottom: '50%', left: '50%', width: '2px', height: '38px', backgroundColor: '#ff0000', transformOrigin: 'bottom center', transition: 'transform 0.6s ease-out', zIndex: 5 },
   needleArrow: { position: 'absolute', top: '-6px', left: '-3px', width: '0', height: '0', borderLeft: '4px solid transparent', borderRight: '4px solid transparent', borderBottom: '8px solid #ff0000' },
-  needleHub: { position: 'absolute', top: '50%', left: '50%', width: '8px', height: '8px', backgroundColor: '#222', borderRadius: '50%', transform: 'translate(-50%, -50%)', border: '1px solid #666' },
-  gaugeGlass: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 60%)' },
+  needleHub: { position: 'absolute', top: '50%', left: '50%', width: '8px', height: '8px', backgroundColor: '#333', borderRadius: '50%', transform: 'translate(-50%, -50%)', border: '1px solid #666', zIndex: 6 },
+  gaugeGlass: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', background: 'linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%)', zIndex: 7, pointerEvents: 'none' },
+
+  interactionArea: { minHeight: '140px', marginBottom: '10px' },
   grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' },
   boneButton: { padding: '12px 5px', backgroundColor: '#f8fafc', color: '#000', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' },
   primaryButton: { width: '100%', padding: '15px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' },
